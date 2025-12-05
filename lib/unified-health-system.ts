@@ -1195,6 +1195,196 @@ export function generateComprehensiveAlerts(input: ComprehensiveAlertInput): Gen
     }
   }
 
+  // --- APPETITE ALERTS (from health records) ---
+  const recentAppetiteRecords = healthRecords
+    .filter(r => r.type === 'appetite')
+    .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime())
+    .slice(0, 5);
+
+  if (recentAppetiteRecords.length > 0) {
+    const avgAppetite = recentAppetiteRecords.reduce((sum, r) => sum + r.value, 0) / recentAppetiteRecords.length;
+    const latestAppetite = recentAppetiteRecords[0].value;
+
+    // Appetite is on 1-5 scale: 1=refusing food, 3=normal, 5=excessive
+    if (latestAppetite <= 1.5 || avgAppetite <= 1.5) {
+      alerts.push({
+        type: 'poor_appetite',
+        severity: 'high',
+        message: `${pet.name} has poor appetite (${latestAppetite.toFixed(1)}/5) - refusing or barely eating`,
+        recommendation: 'URGENT: Loss of appetite can indicate pain, infection, dental issues, or organ problems. Contact your vet within 24-48 hours if appetite doesn\'t improve.'
+      });
+    } else if (latestAppetite <= 2 || avgAppetite <= 2) {
+      alerts.push({
+        type: 'reduced_appetite',
+        severity: 'medium',
+        message: `${pet.name}'s appetite is below normal (${latestAppetite.toFixed(1)}/5)`,
+        recommendation: 'Monitor food intake closely. Try warming food slightly or adding low-sodium broth. If it persists more than 2-3 days, consult your vet.'
+      });
+    } else if (latestAppetite >= 4.5 || avgAppetite >= 4.5) {
+      alerts.push({
+        type: 'excessive_appetite',
+        severity: 'medium',
+        message: `${pet.name} shows excessive appetite (${latestAppetite.toFixed(1)}/5) - constantly hungry`,
+        recommendation: 'Excessive hunger can indicate diabetes, hyperthyroidism, or intestinal parasites. Consider a vet checkup if accompanied by weight changes.'
+      });
+    }
+  }
+
+  // --- TEMPERATURE ALERTS (from health records) ---
+  const vitalRanges = getVitalSignRanges(pet);
+  const recentTempRecords = healthRecords
+    .filter(r => r.type === 'temperature')
+    .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+
+  if (recentTempRecords.length > 0) {
+    const latestTemp = recentTempRecords[0].value;
+    const tempRange = vitalRanges.temperature;
+
+    if (latestTemp >= tempRange.critical_high) {
+      alerts.push({
+        type: 'critical_fever',
+        severity: 'high',
+        message: `CRITICAL: ${pet.name}'s temperature is dangerously high at ${latestTemp}°C (normal: ${tempRange.min}-${tempRange.max}°C)`,
+        recommendation: 'EMERGENCY: This is a life-threatening temperature. Seek emergency veterinary care immediately. Apply cool (not cold) water to paw pads while transporting.'
+      });
+    } else if (latestTemp <= tempRange.critical_low) {
+      alerts.push({
+        type: 'critical_hypothermia',
+        severity: 'high',
+        message: `CRITICAL: ${pet.name}'s temperature is dangerously low at ${latestTemp}°C (normal: ${tempRange.min}-${tempRange.max}°C)`,
+        recommendation: 'EMERGENCY: This is a life-threatening temperature. Wrap in warm blankets and seek emergency veterinary care immediately.'
+      });
+    } else if (latestTemp > tempRange.max) {
+      alerts.push({
+        type: 'fever',
+        severity: 'medium',
+        message: `${pet.name} has a fever at ${latestTemp}°C (normal: ${tempRange.min}-${tempRange.max}°C)`,
+        recommendation: 'Fever often indicates infection or inflammation. Keep pet hydrated and monitor closely. Consult vet if fever persists more than 24 hours.'
+      });
+    } else if (latestTemp < tempRange.min) {
+      alerts.push({
+        type: 'low_temperature',
+        severity: 'medium',
+        message: `${pet.name}'s temperature is below normal at ${latestTemp}°C (normal: ${tempRange.min}-${tempRange.max}°C)`,
+        recommendation: 'Low body temperature can indicate shock, illness, or hypothermia. Keep pet warm and consult your vet.'
+      });
+    }
+  }
+
+  // --- HEART RATE ALERTS (from health records) ---
+  const recentHRRecords = healthRecords
+    .filter(r => r.type === 'heart_rate')
+    .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+
+  if (recentHRRecords.length > 0) {
+    const latestHR = recentHRRecords[0].value;
+    const hrRange = vitalRanges.heartRate;
+
+    if (latestHR >= hrRange.critical_high) {
+      alerts.push({
+        type: 'critical_tachycardia',
+        severity: 'high',
+        message: `CRITICAL: ${pet.name}'s heart rate is dangerously high at ${latestHR} bpm (normal: ${hrRange.min}-${hrRange.max} bpm)`,
+        recommendation: 'EMERGENCY: Extremely rapid heart rate requires immediate veterinary attention. Keep pet calm and cool during transport.'
+      });
+    } else if (latestHR <= hrRange.critical_low) {
+      alerts.push({
+        type: 'critical_bradycardia',
+        severity: 'high',
+        message: `CRITICAL: ${pet.name}'s heart rate is dangerously low at ${latestHR} bpm (normal: ${hrRange.min}-${hrRange.max} bpm)`,
+        recommendation: 'EMERGENCY: Very slow heart rate can indicate heart block or toxicity. Seek emergency veterinary care immediately.'
+      });
+    } else if (latestHR > hrRange.max) {
+      alerts.push({
+        type: 'elevated_heart_rate',
+        severity: 'medium',
+        message: `${pet.name}'s heart rate is elevated at ${latestHR} bpm (normal: ${hrRange.min}-${hrRange.max} bpm)`,
+        recommendation: 'Elevated heart rate can indicate pain, stress, fever, or heart conditions. If persistent at rest, consult your vet.'
+      });
+    } else if (latestHR < hrRange.min) {
+      alerts.push({
+        type: 'low_heart_rate',
+        severity: 'medium',
+        message: `${pet.name}'s heart rate is below normal at ${latestHR} bpm (normal: ${hrRange.min}-${hrRange.max} bpm)`,
+        recommendation: 'Low heart rate can be normal for athletic dogs or indicate heart issues. If pet seems lethargic, consult your vet.'
+      });
+    }
+  }
+
+  // --- CLINICAL SUMMARY / VET VISIT ALERTS (from extracted OCR data) ---
+  // Analyzes clinical summaries from vet visits for actionable follow-ups
+  const clinicalRecords = healthRecords
+    .filter(r => r.type === 'clinical_summary' || r.type === 'diagnosis' || r.type === 'medication')
+    .sort((a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime());
+
+  if (clinicalRecords.length > 0) {
+    const latestClinical = clinicalRecords[0];
+    const notes = latestClinical.notes?.toLowerCase() || '';
+    const daysSinceVisit = Math.floor((Date.now() - new Date(latestClinical.recordedAt).getTime()) / (1000 * 60 * 60 * 24));
+
+    // Check for concerning keywords in clinical notes
+    const urgentKeywords = ['urgent', 'emergency', 'critical', 'immediate', 'surgery', 'hospitalize'];
+    const followUpKeywords = ['follow-up', 'recheck', 'return', 'monitor', 'review in'];
+    const medicationKeywords = ['medication', 'prescription', 'antibiotic', 'steroid', 'daily', 'twice daily'];
+    const conditionKeywords = ['infection', 'tumor', 'mass', 'disease', 'diabetes', 'kidney', 'liver', 'heart murmur'];
+
+    const hasUrgent = urgentKeywords.some(k => notes.includes(k));
+    const hasFollowUp = followUpKeywords.some(k => notes.includes(k));
+    const hasMedication = medicationKeywords.some(k => notes.includes(k));
+    const hasCondition = conditionKeywords.some(k => notes.includes(k));
+
+    // Generate alerts based on clinical content
+    if (hasUrgent && daysSinceVisit <= 7) {
+      alerts.push({
+        type: 'urgent_clinical_attention',
+        severity: 'high',
+        message: `${pet.name} has urgent clinical notes from ${daysSinceVisit === 0 ? 'today' : `${daysSinceVisit} days ago`}`,
+        recommendation: 'Review the clinical summary carefully and ensure all urgent recommendations are being followed. Contact your vet if unsure.'
+      });
+    }
+
+    if (hasFollowUp && daysSinceVisit > 7) {
+      alerts.push({
+        type: 'followup_reminder',
+        severity: 'medium',
+        message: `${pet.name} may need a follow-up visit (last clinical notes: ${daysSinceVisit} days ago)`,
+        recommendation: 'Check your clinical records - a follow-up visit may have been recommended. Schedule with your vet if overdue.'
+      });
+    }
+
+    if (hasMedication && daysSinceVisit > 14) {
+      alerts.push({
+        type: 'medication_check',
+        severity: 'low',
+        message: `${pet.name} was prescribed medication ${daysSinceVisit} days ago`,
+        recommendation: 'Ensure medication course is complete. If symptoms persist or worsen, consult your vet about next steps.'
+      });
+    }
+
+    if (hasCondition) {
+      alerts.push({
+        type: 'condition_monitoring',
+        severity: 'medium',
+        message: `${pet.name} has a diagnosed condition that requires ongoing monitoring`,
+        recommendation: 'Pets with chronic conditions benefit from regular check-ups. Keep track of any symptom changes and maintain medication schedules.'
+      });
+    }
+  }
+
+  // --- MISSING RECENT DATA ALERTS ---
+  // Encourage users to track regularly
+  const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const recentRecords = healthRecords.filter(r => new Date(r.recordedAt) > oneWeekAgo);
+
+  if (recentRecords.length === 0 && healthRecords.length > 0) {
+    alerts.push({
+      type: 'no_recent_tracking',
+      severity: 'low',
+      message: `No health data logged for ${pet.name} in the past week`,
+      recommendation: 'Regular tracking helps catch health issues early. Log weight, activity, or appetite today to maintain health visibility.'
+    });
+  }
+
   return alerts;
 }
 

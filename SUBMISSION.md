@@ -148,12 +148,28 @@ This matches what a veterinarian would assess clinically.
 | Planned Feature | Delivered? | How It Works |
 |-----------------|------------|--------------|
 | Pet profiles | Yes | Create/edit pets with name, species, breed, age, weight, photo |
-| Health tracking | Yes | Log weight, activity, temperature, appetite, symptoms |
+| Health tracking | Yes | Log weight, activity, temperature, appetite, heart rate, symptoms |
 | Health scoring | Yes | Automated 7-component algorithm calculates overall health |
 | AI document scanner | Yes | Upload vet documents, AI extracts health data automatically |
 | AI health assistant | Yes | Chat with AI that knows your pet's health history |
-| Alert system | Yes | Automatic alerts for weight changes, missed vaccines, etc. |
+| Alert system | Yes | **Comprehensive algorithm-based alerts** (see below) |
 | Appointment scheduling | Yes | Track vet appointments with reminders |
+
+**Alert System - All Metrics Analyzed:**
+
+The alert system uses a rule-based algorithm that analyzes ALL collected health metrics:
+
+| Metric | Alert Types Generated | Clinical Basis |
+|--------|----------------------|----------------|
+| **Weight** | obese, overweight, underweight, rapid_weight_gain, rapid_weight_loss | BCS scale (Laflamme 1997) + breed-specific ideals |
+| **Activity** | severely_low_activity, low_activity, moderate_activity | AAHA exercise guidelines, age-adjusted |
+| **Appetite** | poor_appetite, reduced_appetite, excessive_appetite | 1-5 scale; abnormal = possible illness |
+| **Temperature** | critical_fever, fever, hypothermia, low_temperature | Species-specific ranges (Dogs: 38-39.2°C) |
+| **Heart Rate** | critical_tachycardia, elevated_heart_rate, critical_bradycardia, low_heart_rate | Species-specific (Dogs: 60-140 bpm, Cats: 140-220 bpm) |
+| **Vaccinations** | vaccination_overdue, vaccination_due_soon, no_vaccination_record | Annual booster schedule |
+| **Age** | senior_pet, geriatric_pet, impossible_age | Life expectancy by species/breed |
+| **Clinical Notes** | urgent_clinical_attention, followup_reminder, medication_check, condition_monitoring | OCR-extracted vet records |
+| **Tracking** | no_recent_tracking | Encourages consistent data logging |
 
 **System integration (everything connects):**
 

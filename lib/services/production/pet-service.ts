@@ -7,7 +7,7 @@
 
 import type { Pet, PetCreateInput, PetUpdateInput } from '../types';
 import { getSupabaseBrowserClient, getSupabaseServiceRoleClient } from '@/lib/supabase/client';
-import { generateComprehensiveAlerts, Pet as HealthPet } from '@/lib/unified-health-system';
+import { generateComprehensiveAlerts, Pet as HealthPet, HealthRecord as UnifiedHealthRecord } from '@/lib/unified-health-system';
 
 const PETS_TABLE = 'pets';
 
@@ -60,28 +60,46 @@ async function requireUserId() {
 /**
  * Generate and save health alerts for a pet
  * Uses rule-based algorithm (no AI API calls) for accuracy and speed
- * Now includes activity data analysis for comprehensive alerts
+ * Analyzes ALL health metrics: weight, activity, appetite, temperature, heart rate, clinical summaries
  */
 async function generateAndSaveAlerts(pet: Pet, userId: string): Promise<number> {
   const supabase = requireClient(false);
   if (!supabase) return 0;
 
-  // Fetch recent activity data (last 7 days) from health_records
+  // Fetch recent health records (last 30 days) for comprehensive analysis
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const { data: allHealthRecords } = await supabase
+    .from('health_records')
+    .select('*')
+    .eq('pet_id', pet.id)
+    .gte('recorded_at', thirtyDaysAgo.toISOString())
+    .order('recorded_at', { ascending: false });
+
+  // Transform to unified health record format
+  const healthRecords: UnifiedHealthRecord[] = (allHealthRecords ?? []).map(r => ({
+    id: r.id,
+    petId: r.pet_id,
+    type: r.type,
+    value: typeof r.value === 'string' ? parseFloat(r.value) : r.value,
+    unit: r.unit,
+    notes: r.notes,
+    recordedAt: r.recorded_at,
+    createdAt: r.created_at,
+  }));
+
+  // Calculate activity minutes for the week (last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const { data: activityRecords } = await supabase
-    .from('health_records')
-    .select('value')
-    .eq('pet_id', pet.id)
-    .eq('type', 'activity')
-    .gte('recorded_at', sevenDaysAgo.toISOString());
+  const activityMinutesThisWeek = healthRecords
+    .filter(r => r.type === 'activity' && new Date(r.recordedAt) >= sevenDaysAgo)
+    .reduce((sum, r) => sum + (isNaN(r.value) ? 0 : r.value), 0);
 
-  // Sum up activity minutes for the week
-  const activityMinutesThisWeek = activityRecords?.reduce((sum, record) => {
-    const val = typeof record.value === 'string' ? parseFloat(record.value) : record.value;
-    return sum + (isNaN(val) ? 0 : val);
-  }, 0) ?? 0;
+  // Find last vaccination date
+  const lastVaccination = healthRecords.find(r => r.type === 'vaccination');
+  const lastVaccinationDate = lastVaccination ? new Date(lastVaccination.recordedAt) : undefined;
 
   // Convert to health system Pet type
   const healthPet: HealthPet = {
@@ -93,10 +111,13 @@ async function generateAndSaveAlerts(pet: Pet, userId: string): Promise<number> 
     weight: pet.weight,
   };
 
-  // Generate comprehensive alerts including activity analysis
+  // Generate comprehensive alerts using ALL health data
+  // Analyzes: weight, activity, appetite, temperature, heart rate, vaccinations, clinical summaries
   const alerts = generateComprehensiveAlerts({
     pet: healthPet,
+    healthRecords,
     activityMinutesThisWeek: activityMinutesThisWeek > 0 ? activityMinutesThisWeek : undefined,
+    lastVaccinationDate,
   });
 
   if (alerts.length === 0) {

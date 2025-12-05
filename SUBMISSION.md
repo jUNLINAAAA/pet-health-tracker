@@ -153,13 +153,23 @@ This matches what a veterinarian would assess clinically.
 ```
 User adds health record → Triggers health score recalculation
                        → Checks for alert conditions
-                       → Updates dashboard display
+                       → Updates dashboard display (REALTIME)
                        → AI assistant gains new context
 
 User uploads vet document → AI extracts data (vaccinations, weight, labs)
                          → Creates health records automatically
                          → Triggers alerts if abnormal results found
 ```
+
+**Real-time Updates:**
+- Dashboard metrics update instantly when data changes (via Supabase Realtime)
+- Alert resolutions reflect immediately across all views
+- Multi-device sync - changes on one device appear on others
+
+**Data Isolation & Security:**
+- Row Level Security (RLS) ensures each user only sees their own data
+- No data mixing between accounts - complete privacy
+- All tables protected: pets, alerts, appointments, health_records, health_scores, ai_health_insights
 
 ---
 

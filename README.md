@@ -97,6 +97,7 @@ Pet owners face several challenges in managing their pets' health:
 | **Alert System** | Automated health concern notifications | Rule-based detection engine |
 | **Appointment Manager** | Schedule and track vet visits | Calendar integration |
 | **AI Health Assistant** | Natural language pet health Q&A | LLM with RAG on pet data |
+| **Realtime Updates** | Live dashboard updates without refresh | Supabase Realtime subscriptions |
 
 ### Health Score Algorithm
 
@@ -612,6 +613,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | GET | /api/health-records | List health records |
 | POST | /api/health-records | Create health record |
 | GET | /api/health-score | Calculate health score |
+| GET | /api/health-insights | Get AI health insights (supports realtime) |
+| POST | /api/health-insights | Create new health insight |
+| PATCH | /api/health-insights | Acknowledge/resolve insight |
 | POST | /api/assistant | Send message to AI assistant |
 | POST | /api/documents/ocr | Process document with OCR |
 

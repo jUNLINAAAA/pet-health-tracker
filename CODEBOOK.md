@@ -282,6 +282,63 @@ Stores AI chat history for the pet health assistant.
 
 ---
 
+## Table: ai_health_insights
+
+Stores AI-detected health patterns from conversations with realtime subscription support.
+
+| Column | Type | Required | Description | Example Values |
+|--------|------|----------|-------------|----------------|
+| id | uuid | Yes | Unique identifier | "h1i2j3..." |
+| pet_id | uuid | Yes | Which pet this insight is for | "a1b2c3d4-..." |
+| user_id | uuid | Yes | Owner's user ID | "e5f6g7h8-..." |
+| insight_type | text | Yes | Category of health insight | See "Insight Types" below |
+| message | text | Yes | Detailed insight message | "Noticed reduced activity levels" |
+| severity | text | Yes | How concerning the insight is | "low", "medium", "high" |
+| confidence | decimal | Yes | AI confidence level (0-1) | 0.85, 0.92, 0.78 |
+| score_impact | integer | No | Impact on health score | -10, -5, +5 |
+| recommendation | text | No | Suggested action | "Consider increasing daily walks" |
+| data_points | jsonb | No | Supporting data | [{"label": "Activity", "value": 30}] |
+| acknowledged | boolean | Yes | Whether user has seen it | true, false |
+| resolved | boolean | Yes | Whether issue is addressed | true, false |
+| resolved_at | timestamp | No | When insight was resolved | "2024-03-25T10:00:00Z" |
+| created_at | timestamp | Yes | When insight was detected | "2024-03-20T08:00:00Z" |
+| updated_at | timestamp | Yes | Last update time | "2024-03-20T09:00:00Z" |
+
+### Insight Types
+
+| Type | What It Detects | Typical Severity |
+|------|-----------------|------------------|
+| symptom_reported | User reported symptoms in chat | medium/high |
+| behavior_change | Unusual behavior patterns | low/medium |
+| diet_concern | Eating habit changes | low/medium |
+| activity_update | Activity level changes | low |
+| weight_update | Weight trend from data | medium |
+| health_improvement | Positive health trend | low (positive) |
+| health_concern | General health concern | medium/high |
+| vet_recommendation | AI suggests vet visit | medium |
+| positive_trend | Improving health metrics | low (positive) |
+
+### Realtime Subscriptions
+
+The ai_health_insights table supports Supabase Realtime subscriptions for live dashboard updates:
+
+```typescript
+// Subscribe to insight changes
+supabase
+  .channel('ai_health_insights_changes')
+  .on('postgres_changes', {
+    event: '*',
+    schema: 'public',
+    table: 'ai_health_insights',
+    filter: `pet_id=eq.${petId}`,
+  }, (payload) => {
+    // Handle INSERT, UPDATE, DELETE events
+  })
+  .subscribe();
+```
+
+---
+
 ## Table: user_profiles
 
 Stores user account settings and preferences.

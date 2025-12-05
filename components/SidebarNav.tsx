@@ -129,19 +129,49 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
     // Note: Stats are now derived from useHealth() which has its own realtime subscriptions
   }, []);
 
-  // Fetch aggregated alert stats to avoid stale 0/0 when resolved alerts are filtered
+  // Fetch aggregated alert stats - wait for auth and re-fetch when alerts change
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const stats = await AlertService.getAlertStats();
-        setAlertStats({ total: stats.total, resolved: stats.resolved });
+        const supabase = getSupabaseBrowserClient();
+        if (!supabase) {
+          console.log("SidebarNav: No Supabase client");
+          return;
+        }
+
+        // Wait for session to be ready
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) {
+          console.log("SidebarNav: No session, cannot fetch alert stats");
+          return;
+        }
+
+        // Fetch stats directly from database for reliability
+        const [totalResult, resolvedResult] = await Promise.all([
+          supabase
+            .from('alerts')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', session.user.id),
+          supabase
+            .from('alerts')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', session.user.id)
+            .eq('resolved', true),
+        ]);
+
+        const total = totalResult.count ?? 0;
+        const resolved = resolvedResult.count ?? 0;
+
+        console.log(`SidebarNav: Alert stats - ${total} total, ${resolved} resolved`);
+        setAlertStats({ total, resolved });
       } catch (error) {
         console.error("Error fetching alert stats:", error);
       }
     };
 
+    // Fetch stats immediately and when alerts change
     fetchStats();
-  }, []);
+  }, [alerts]); // Re-fetch when alerts array changes
 
   const handleLogout = async () => {
     try {

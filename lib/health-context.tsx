@@ -48,10 +48,23 @@ export interface Appointment {
   createdAt?: string;
 }
 
+// Health record type for sparklines
+export interface HealthRecord {
+  id: string;
+  petId: string;
+  type: string;
+  value: number;
+  unit?: string;
+  notes?: string;
+  recordedAt: string;
+  createdAt?: string;
+}
+
 interface HealthContextType {
   pets: Pet[];
   alerts: Alert[];
   appointments: Appointment[];
+  healthRecords: HealthRecord[];
   petScores: Map<string, UnifiedHealthScore>;
   petDetails: Map<string, PetHealthData>;
   loading: boolean;
@@ -112,6 +125,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
   const [pets, setPets] = useState<Pet[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [healthRecords, setHealthRecords] = useState<HealthRecord[]>([]);
   const [petScores, setPetScores] = useState<Map<string, UnifiedHealthScore>>(new Map());
   const [petDetails, setPetDetails] = useState<Map<string, PetHealthData>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -292,6 +306,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       setPets(basePets);
       setAlerts(allAlerts as Alert[]);
       setAppointments(allAppointments as Appointment[]);
+      setHealthRecords(allHealthRecords as HealthRecord[]);
       setPetScores(scoreMap);
       setPetDetails(detailMap);
     } catch (error) {
@@ -473,6 +488,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       pets,
       alerts,
       appointments,
+      healthRecords,
       petScores,
       petDetails,
       loading,

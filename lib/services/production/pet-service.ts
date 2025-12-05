@@ -7,7 +7,7 @@
 
 import type { Pet, PetCreateInput, PetUpdateInput } from '../types';
 import { getSupabaseBrowserClient, getSupabaseServiceRoleClient } from '@/lib/supabase/client';
-import { generateHealthAlerts, Pet as HealthPet } from '@/lib/unified-health-system';
+import { generateComprehensiveAlerts, Pet as HealthPet } from '@/lib/unified-health-system';
 
 const PETS_TABLE = 'pets';
 
@@ -60,10 +60,28 @@ async function requireUserId() {
 /**
  * Generate and save health alerts for a pet
  * Uses rule-based algorithm (no AI API calls) for accuracy and speed
+ * Now includes activity data analysis for comprehensive alerts
  */
 async function generateAndSaveAlerts(pet: Pet, userId: string): Promise<number> {
   const supabase = requireClient(false);
   if (!supabase) return 0;
+
+  // Fetch recent activity data (last 7 days) from health_records
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  const { data: activityRecords } = await supabase
+    .from('health_records')
+    .select('value')
+    .eq('pet_id', pet.id)
+    .eq('type', 'activity')
+    .gte('recorded_at', sevenDaysAgo.toISOString());
+
+  // Sum up activity minutes for the week
+  const activityMinutesThisWeek = activityRecords?.reduce((sum, record) => {
+    const val = typeof record.value === 'string' ? parseFloat(record.value) : record.value;
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0) ?? 0;
 
   // Convert to health system Pet type
   const healthPet: HealthPet = {
@@ -75,8 +93,11 @@ async function generateAndSaveAlerts(pet: Pet, userId: string): Promise<number> 
     weight: pet.weight,
   };
 
-  // Generate alerts using the rule-based system
-  const alerts = generateHealthAlerts(healthPet);
+  // Generate comprehensive alerts including activity analysis
+  const alerts = generateComprehensiveAlerts({
+    pet: healthPet,
+    activityMinutesThisWeek: activityMinutesThisWeek > 0 ? activityMinutesThisWeek : undefined,
+  });
 
   if (alerts.length === 0) {
     console.log(`No health alerts for ${pet.name}`);

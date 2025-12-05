@@ -92,9 +92,28 @@ export default function PremiumDashboard() {
     if (pets.length === 0) return null;
 
     const msInDay = 1000 * 60 * 60 * 24;
-    const trackedWeights = pets
-      .map((pet) => pet.weight)
-      .filter((weight): weight is number => typeof weight === "number" && !Number.isNaN(weight));
+
+    // Get historical weight data from petScores (uses health_records history)
+    const allWeightHistory: number[] = [];
+    const allScoreHistory: number[] = [];
+
+    Array.from(petScores.values()).forEach((score) => {
+      // Use historical data from Edge Function if available
+      if (score.history?.weights?.length > 0) {
+        allWeightHistory.push(...score.history.weights.filter((w: number) => w > 0));
+      }
+      if (score.history?.scores?.length > 0) {
+        allScoreHistory.push(...score.history.scores.filter((s: number) => s > 0));
+      }
+    });
+
+    // Fallback to current pet weights if no history
+    const trackedWeights = allWeightHistory.length > 0
+      ? allWeightHistory
+      : pets
+          .map((pet) => pet.weight)
+          .filter((weight): weight is number => typeof weight === "number" && !Number.isNaN(weight));
+
     const avgWeight =
       trackedWeights.length > 0
         ? trackedWeights.reduce((sum, weight) => sum + weight, 0) / trackedWeights.length
@@ -123,7 +142,10 @@ export default function PremiumDashboard() {
       : [0]
     ).slice(-9);
 
-    const scoreValues = Array.from(petScores.values()).map((score) => score.overall);
+    // Use historical score data if available, fallback to current scores
+    const scoreValues = allScoreHistory.length > 0
+      ? allScoreHistory
+      : Array.from(petScores.values()).map((score) => score.overall);
     const avgScore = scoreValues.length
       ? Math.round(scoreValues.reduce((sum, value) => sum + value, 0) / scoreValues.length)
       : 0;

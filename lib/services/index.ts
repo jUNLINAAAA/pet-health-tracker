@@ -28,6 +28,7 @@ import { AIHealthInsightsService } from './production/ai-health-insights-service
 import { ClinicLocationService } from './production/clinic-location-service';
 import { AIScoreVerificationService } from './production/ai-score-verification-service';
 import { PetLearningService } from './production/pet-learning-service';
+import type { AlertStats } from './production/alert-service';
 
 /**
  * PET SERVICE - Production
@@ -58,6 +59,10 @@ export const PetService = {
  * ALERT SERVICE - Production
  */
 export const AlertService = {
+  async getAlertStats(): Promise<AlertStats> {
+    return ProductionAlertService.getAlertStats();
+  },
+
   async getAlerts(petId?: string): Promise<Alert[]> {
     return ProductionAlertService.getAlerts(petId);
   },

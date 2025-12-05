@@ -23,6 +23,7 @@ import { Surface } from "@/components/ui/Surface";
 import { motion } from "framer-motion";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { useHealth } from "@/lib/health-context";
+import { AlertService } from "@/lib/services";
 
 const navigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home, exact: true },
@@ -67,12 +68,10 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<UserData | null>(null);
+  const [alertStats, setAlertStats] = useState<{ total: number; resolved: number } | null>(null);
 
   // Use shared health context for consistent data across dashboard
   const { pets, alerts, petScores, loading: isLoadingStats } = useHealth();
-
-  // Debug logging to track alerts loading
-  console.log('SidebarNav: pets count =', pets.length, 'alerts count =', alerts.length, 'loading =', isLoadingStats);
 
   // Calculate stats from the shared health context - same source as Dashboard
   const stats = useMemo<QuickStats>(() => {
@@ -87,20 +86,25 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
     // Calculate alerts stats - show ALL alerts, not just recent ones
     // Active alerts = unresolved (these need attention!)
     // Total shows context for resolution rate
-    const activeAlerts = alerts.filter(a => !a.resolved);
-    const resolvedAlerts = alerts.filter(a => a.resolved);
-    const totalAlerts = alerts.length;
-    const resolvedPercent = totalAlerts > 0 ? Math.round((resolvedAlerts.length / totalAlerts) * 100) : 0;
+    const totalFromContext = alerts.length;
+    const resolvedFromContext = alerts.filter(a => a.resolved).length;
+    const activeFromContext = alerts.filter(a => !a.resolved).length;
+
+    // Prefer aggregated stats (guard against state that filtered out resolved alerts)
+    const totalAlerts = alertStats?.total ?? totalFromContext;
+    const resolvedAlerts = alertStats?.resolved ?? resolvedFromContext;
+    const activeAlerts = alertStats ? Math.max(0, totalAlerts - resolvedAlerts) : activeFromContext;
+    const resolvedPercent = totalAlerts > 0 ? Math.round((resolvedAlerts / totalAlerts) * 100) : 0;
 
     return {
       wellnessIndex: avgScore,
       wellnessChange: 0,
-      alertsResolved: resolvedAlerts.length,
+      alertsResolved: resolvedAlerts,
       alertsTotal: totalAlerts,
       resolvedPercent,
-      activeAlerts: activeAlerts.length, // NEW: track active alerts separately
+      activeAlerts, // NEW: track active alerts separately
     };
-  }, [pets, alerts, petScores]);
+  }, [pets, alerts, petScores, alertStats]);
 
   // Fetch user data on mount
   useEffect(() => {
@@ -123,6 +127,20 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
 
     fetchUser();
     // Note: Stats are now derived from useHealth() which has its own realtime subscriptions
+  }, []);
+
+  // Fetch aggregated alert stats to avoid stale 0/0 when resolved alerts are filtered
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const stats = await AlertService.getAlertStats();
+        setAlertStats({ total: stats.total, resolved: stats.resolved });
+      } catch (error) {
+        console.error("Error fetching alert stats:", error);
+      }
+    };
+
+    fetchStats();
   }, []);
 
   const handleLogout = async () => {

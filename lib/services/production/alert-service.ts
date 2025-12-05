@@ -10,6 +10,12 @@ import { getSupabaseBrowserClient, getSupabaseServiceRoleClient } from '@/lib/su
 
 const ALERTS_TABLE = 'alerts';
 
+export type AlertStats = {
+  total: number;
+  resolved: number;
+  active: number;
+};
+
 function mapAlert(row: any): Alert {
   return {
     id: row.id,
@@ -150,4 +156,40 @@ export async function deleteAlert(id: string): Promise<void> {
     console.error('Supabase deleteAlert error', error);
     throw error;
   }
+}
+
+/**
+ * Aggregate alert stats per authenticated user.
+ * Used by sidebar quick insights to avoid showing 0/0 when data exists.
+ */
+export async function getAlertStats(): Promise<AlertStats> {
+  const supabase = requireClient();
+  if (!supabase) throw new Error('Supabase not configured');
+  const userId = await requireUserId();
+
+  const [{ count: totalCount, error: totalError }, { count: resolvedCount, error: resolvedError }] =
+    await Promise.all([
+      supabase
+        .from(ALERTS_TABLE)
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      supabase
+        .from(ALERTS_TABLE)
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('resolved', true),
+    ]);
+
+  if (totalError || resolvedError) {
+    console.error('Supabase getAlertStats error', totalError || resolvedError);
+    throw (totalError || resolvedError)!;
+  }
+
+  const total = totalCount ?? 0;
+  const resolved = resolvedCount ?? 0;
+  return {
+    total,
+    resolved,
+    active: Math.max(0, total - resolved),
+  };
 }

@@ -1,0 +1,66 @@
+# Total-H3 Pet Health Tracker - Proprietary Non-Commercial License
+
+Copyright (c) 2024-2025 Total-H3. All Rights Reserved.
+
+## Terms and Conditions
+
+### 1. Definitions
+
+- "Software" refers to the Pet Health Tracker application, including all source code, documentation, assets, designs, and related materials.
+- "Commercial Use" means any use intended for or directed toward commercial advantage or monetary compensation.
+- "Personal Use" means use by an individual for non-commercial purposes such as learning, personal projects, or evaluation.
+
+### 2. Grant of Rights
+
+Subject to the terms of this License, the copyright holder grants you a limited, non-exclusive, non-transferable, revocable license to:
+
+- **View**: Access and read the source code for educational purposes
+- **Run**: Execute the Software for personal, non-commercial evaluation
+- **Fork**: Create a personal copy on GitHub for learning purposes only
+
+### 3. Restrictions
+
+You may NOT:
+
+- **Sell or Commercialize**: Use the Software for any commercial purpose, including but not limited to selling, licensing, or offering as a paid service
+- **Copy or Redistribute**: Distribute, sublicense, or make the Software available to third parties
+- **Modify for Commercial Use**: Create derivative works for commercial purposes
+- **Remove Attribution**: Remove or alter any copyright notices, branding, or attribution
+- **Claim Ownership**: Represent the Software or any part of it as your own original work
+- **White-label**: Rebrand the Software for commercial or non-commercial distribution
+- **Compete**: Use the Software or its concepts to create a competing product or service
+
+### 4. Intellectual Property
+
+All intellectual property rights in the Software, including but not limited to:
+- Source code and architecture
+- User interface designs
+- Health scoring algorithms
+- AI integration methods
+- Database schemas
+- Branding and visual assets
+
+remain the exclusive property of the copyright holder.
+
+### 5. No Warranty
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+### 6. Limitation of Liability
+
+IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+### 7. Termination
+
+This license automatically terminates if you violate any of its terms. Upon termination, you must:
+- Immediately cease all use of the Software
+- Delete all copies in your possession
+- Remove any forks or copies from public repositories
+
+### 8. Contact
+
+For licensing inquiries, commercial use requests, or permissions beyond the scope of this license, please contact the copyright holder through the GitHub repository.
+
+---
+
+**Summary**: You may view and run this code for personal learning only. Any commercial use, redistribution, or copying of the code or concepts is strictly prohibited without explicit written permission.

@@ -361,7 +361,7 @@ For complete schema documentation, see [CODEBOOK.md](./CODEBOOK.md).
 - Threshold-based alerting
 - Trend detection for weight changes
 
-### 4. Unified Health Score Algorithm V4.2 (Python + TypeScript)
+### 4. Unified Health Score Algorithm V4
 
 **Purpose**: Calculate evidence-based health scores using peer-reviewed veterinary research
 
@@ -370,12 +370,12 @@ For complete schema documentation, see [CODEBOOK.md](./CODEBOOK.md).
 - `analysis/health_score_algorithm.py` - Offline analysis with report generation
 - `lib/unified-health-system.ts` - TypeScript fallback for Edge Function
 
-**Algorithm V4.2 Features**:
-- **Evidence-based scoring** using peer-reviewed veterinary literature
+**Algorithm V4 Features**:
+- **93.8% clinical accuracy** - Validated against 16 real veterinary cases
+- **94.9% stress test accuracy** - 1,323 parametric test cases
 - **100+ breed support** with species-specific weight ranges
-- **99.1% accuracy** validated through 1323 parametric test cases
-- **Multi-species coverage**: Dogs, Cats, Rabbits, Birds, Guinea Pigs, Hamsters, Ferrets, Reptiles, Fish
-- **Time-decay weighting** (exponential decay factor: 0.95/day)
+- **9 species coverage**: Dogs, Cats, Rabbits, Birds, Guinea Pigs, Hamsters, Ferrets, Reptiles, Fish
+- **BCS-based scoring** using Laflamme 9-point Body Condition Score scale
 
 **Scholarly Citations**:
 | Source | Application |
@@ -398,27 +398,87 @@ For complete schema documentation, see [CODEBOOK.md](./CODEBOOK.md).
 | AI Insights | 10% | Pattern detection from conversations |
 | Age | 10% | Life-stage adjusted baseline |
 
-**Test Results (1323 cases)**:
-| Category | Pass Rate |
-|----------|-----------|
-| Breed Weight Tests | 98.6% |
-| Age-based Tests | 100% |
-| Activity Tests | 100% |
-| Alert Tests | 100% |
-| Medical Compliance | 100% |
-| BCS Estimation | 100% |
-| Edge Cases | 100% |
-| **Overall** | **99.1%** |
+**Clinical Validation Sources**:
+| Study | What We Tested |
+|-------|----------------|
+| German AJ et al. (2010) J Vet Intern Med | Obese vs healthy Labradors |
+| Kealy RD et al. (2002) JAVMA | 14-year lifespan study |
+| Lund EM et al. (2006) JAVMA | Dog obesity prevalence data |
+| Cave NJ et al. (2012) NZ Vet J | Cat obesity patterns |
+| Laflamme D (1997) JAVMA | BCS validation study |
+
+**Test Results**:
+| Test Type | Cases | Pass Rate |
+|-----------|-------|-----------|
+| Clinical Validation (real vet cases) | 16 | **93.8%** |
+| Stress Tests (parametric) | 1,323 | **94.9%** |
 
 **Run Tests**:
 ```bash
+# Clinical validation with real vet cases
+python3 tests/clinical-cases-test.py
+
+# Stress tests with parametric cases
 python3 tests/stress-test-algorithm.py
 ```
 
-**Run Analysis**:
-```bash
-python3 analysis/health_score_algorithm.py
+### 5. Alert System (Rule-Based Detection)
+
+**Purpose**: Automatically detect health concerns and notify pet owners
+
+**How Alerts Are Generated**:
+
+| Trigger | Alert Type | Severity | Example |
+|---------|------------|----------|---------|
+| Weight change >10% in 30 days | weight_change | medium | "Max gained 3kg in the past month" |
+| Weight change >20% in 30 days | weight_change | high | "Luna lost 1.5kg rapidly" |
+| No vaccination in 365 days | vaccination_due | medium | "Buddy's vaccinations are overdue" |
+| No vet checkup in 365 days | checkup_reminder | low | "Annual checkup recommended" |
+| BCS 8-9 (obese) | obesity_warning | high | "Weight indicates obesity" |
+| BCS 1-2 (underweight) | underweight_warning | high | "Severely underweight" |
+| Abnormal lab results (from OCR) | abnormal_lab | medium/high | "Elevated liver enzymes detected" |
+
+**Alert Severity Levels**:
+| Level | Meaning | Action |
+|-------|---------|--------|
+| Low | Informational | No rush, just be aware |
+| Medium | Attention needed | Schedule vet visit soon |
+| High | Urgent | Seek veterinary care promptly |
+
+**Alert Flow**:
 ```
+Health Record Added → Alert Engine checks:
+  1. Weight trend (30-day analysis)
+  2. Vaccination status (days since last)
+  3. Checkup recency
+  4. BCS score thresholds
+  5. Abnormal values from OCR
+→ Creates alert if rules triggered
+→ Updates dashboard
+→ Sends notification (if enabled)
+```
+
+### 6. AI Health Assistant Details
+
+**Purpose**: Answer pet health questions using the pet's actual health data
+
+**How It Works**:
+1. User asks a question (e.g., "Is Max's weight healthy?")
+2. System retrieves pet's health records from database
+3. RAG (Retrieval Augmented Generation) builds context with actual data
+4. LLM generates response based on real health information
+5. Response includes specific numbers and personalized advice
+
+**What the Assistant Can Do**:
+| Question Type | Example | What It Uses |
+|---------------|---------|--------------|
+| Weight analysis | "Is Luna at a healthy weight?" | Current weight + breed ideal + BCS calculation |
+| Vaccination status | "When is Max's next vaccine due?" | Last vaccination date + species schedule |
+| Health trends | "How has Buddy's health changed?" | 30-day health record history |
+| Breed-specific advice | "What should I feed a Persian cat?" | Species + breed information |
+| Symptom guidance | "My dog is limping" | General guidance + vet referral |
+
+**Important**: The assistant always includes disclaimers to consult a veterinarian for medical decisions.
 
 ---
 

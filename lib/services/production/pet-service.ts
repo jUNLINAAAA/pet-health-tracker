@@ -204,6 +204,54 @@ export async function createPet(data: PetCreateInput): Promise<Pet> {
 
   const pet = mapPet(newPet);
 
+  // Auto-create initial health records when pet has weight
+  // This ensures the dashboard has data to display immediately
+  try {
+    const now = new Date().toISOString();
+    const healthRecords: any[] = [];
+
+    // Create initial weight record if weight is provided
+    if (pet.weight && pet.weight > 0) {
+      healthRecords.push({
+        pet_id: pet.id,
+        user_id: userId,
+        type: 'weight',
+        value: pet.weight,
+        unit: 'kg',
+        notes: 'Initial weight recorded at pet registration',
+        recorded_at: now,
+        created_at: now,
+      });
+    }
+
+    // Create initial activity estimate (baseline 30 min/day for new pets)
+    healthRecords.push({
+      pet_id: pet.id,
+      user_id: userId,
+      type: 'activity',
+      value: 30,
+      unit: 'minutes',
+      notes: 'Initial activity estimate',
+      recorded_at: now,
+      created_at: now,
+    });
+
+    if (healthRecords.length > 0) {
+      const { error: hrError } = await supabase
+        .from('health_records')
+        .insert(healthRecords);
+
+      if (hrError) {
+        console.warn('Failed to create initial health records:', hrError);
+      } else {
+        console.log(`Created ${healthRecords.length} initial health records for ${pet.name}`);
+      }
+    }
+  } catch (hrErr) {
+    console.error('Error creating initial health records:', hrErr);
+    // Don't fail pet creation if health record creation fails
+  }
+
   // Automatically generate health alerts based on pet data
   try {
     const alertsCreated = await generateAndSaveAlerts(pet, userId);

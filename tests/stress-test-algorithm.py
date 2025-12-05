@@ -451,6 +451,38 @@ def run_stress_tests():
             assert "status" in result, "Missing 'status'"
             assert 0 <= result["overall"] <= 100, f"Score out of range: {result['overall']}"
 
+            # RIGOROUS VALIDATION: Check expected score ranges based on scenario
+            overall = result["overall"]
+            weight_score = result["components"].get("weight", 100)
+
+            # Validate weight factor scores
+            if case.get("expected_weight_category"):
+                cat = case["expected_weight_category"]
+                if cat == "underweight":
+                    # Severely underweight (0.65x-0.80x) should score 30-70
+                    factor = case.get("weight", 0) / BREED_WEIGHT_RANGES.get(
+                        case.get("breed", ""), SPECIES_WEIGHT_DEFAULTS.get(case.get("species", "Dog"), (10, 20, 15))
+                    )[2] if case.get("weight") and case.get("weight") > 0 else 1.0
+                    if factor <= 0.75:
+                        assert weight_score <= 70, f"Severely underweight should score <=70: {weight_score} (factor={factor:.2f})"
+                elif cat == "ideal":
+                    # Ideal weight (0.90x-1.10x) should score 80-100
+                    assert weight_score >= 75, f"Ideal weight should score >=75: {weight_score}"
+                elif cat == "overweight":
+                    # Overweight (1.20x-1.30x) should score 50-75
+                    assert weight_score <= 80, f"Overweight should score <=80: {weight_score}"
+                elif cat == "obese":
+                    # Obese (1.35x-1.60x) should score <60
+                    assert weight_score <= 65, f"Obese should score <=65: {weight_score}"
+
+            # Validate unhealthy pet overall scores
+            if case.get("name", "").startswith("obese-senior") or case.get("name", "").startswith("underweight"):
+                assert overall <= 75, f"Unhealthy pet should have overall <=75: {overall}"
+
+            # Validate healthy pet overall scores
+            if case.get("name", "").startswith("perfect-"):
+                assert overall >= 70, f"Perfect pet should have overall >=70: {overall}"
+
             # Validate alert score expectations
             if case.get("expected_alert_min") is not None:
                 alert_score = result["components"].get("alerts", 100)

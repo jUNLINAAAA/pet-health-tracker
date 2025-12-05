@@ -160,6 +160,33 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
 
     fetchUser();
     fetchStats();
+
+    // Set up real-time subscription for alerts changes
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      const alertsChannel = supabase
+        .channel('sidebar-alerts-changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
+          fetchStats();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'health_records' }, () => {
+          fetchStats();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'pets' }, () => {
+          fetchStats();
+        })
+        .subscribe();
+
+      // Also poll every 30 seconds as backup
+      const pollInterval = setInterval(() => {
+        fetchStats();
+      }, 30000);
+
+      return () => {
+        supabase.removeChannel(alertsChannel);
+        clearInterval(pollInterval);
+      };
+    }
   }, [fetchStats]);
 
   const handleLogout = async () => {

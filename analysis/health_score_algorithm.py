@@ -592,10 +592,34 @@ class HealthScoreV4:
         ideal_min, ideal_max, ideal = self._get_weight_range(species, breed)
 
         if ideal_min <= weight <= ideal_max:
-            range_size = ideal_max - ideal_min
-            distance_from_ideal = abs(weight - ideal)
-            score = 100 - (distance_from_ideal / range_size) * 15
-            insight = f"Weight {weight}kg is within ideal range ({ideal_min}-{ideal_max}kg)"
+            # Use BCS-based scoring: deviation from ideal center is critical
+            deviation_percent = ((weight - ideal) / ideal) * 100
+
+            if abs(deviation_percent) <= 5:
+                # Truly ideal (±5% of center) - BCS 5
+                score = 100 - abs(deviation_percent)
+                insight = f"Weight {weight}kg is ideal"
+            elif abs(deviation_percent) <= 15:
+                # Slightly off (±6-15%) - BCS 4 or 6
+                score = max(75, 90 - abs(deviation_percent) * 1.5)
+                if deviation_percent < 0:
+                    insight = f"Weight {weight}kg is slightly below ideal ({ideal}kg)"
+                else:
+                    insight = f"Weight {weight}kg is slightly above ideal ({ideal}kg)"
+            elif abs(deviation_percent) <= 25:
+                # Moderately off (±16-25%) - BCS 3 or 7
+                score = max(50, 75 - abs(deviation_percent) * 1.2)
+                if deviation_percent < 0:
+                    insight = f"Underweight: {weight}kg ({abs(deviation_percent):.0f}% below ideal)"
+                else:
+                    insight = f"Overweight: {weight}kg ({deviation_percent:.0f}% above ideal)"
+            else:
+                # Severely off (>25%) - BCS 2 or 8+ even within breed range
+                score = max(25, 60 - abs(deviation_percent))
+                if deviation_percent < 0:
+                    insight = f"Severely underweight: {weight}kg ({abs(deviation_percent):.0f}% below ideal)"
+                else:
+                    insight = f"Obese: {weight}kg ({deviation_percent:.0f}% above ideal)"
         elif weight < ideal_min:
             deficit_percent = ((ideal_min - weight) / ideal_min) * 100
             if deficit_percent > 30:

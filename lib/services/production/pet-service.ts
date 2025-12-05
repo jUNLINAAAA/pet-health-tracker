@@ -1,7 +1,8 @@
 /**
  * PRODUCTION PET SERVICE
  *
- * This service uses Supabase for real data. Keep it free of demo logic.
+ * This service uses Supabase for real data with proper authentication.
+ * All operations require an authenticated user.
  * Automatically generates health alerts when pets are created/updated.
  */
 
@@ -163,22 +164,18 @@ export async function getPets(): Promise<Pet[]> {
   const supabase = requireClient(false);
   if (!supabase) return [];
 
-  // DEMO MODE: When no user is authenticated, fetch all pets
-  // RLS policies allow public read access for demo purposes
-  let query = supabase.from(PETS_TABLE).select('*').order('created_at', { ascending: false });
-
-  // Only filter by user_id if user is authenticated
-  try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData?.user?.id) {
-      query = query.eq('user_id', userData.user.id);
-    }
-    // If no user, fetch all pets (demo mode with public read RLS)
-  } catch {
-    // Auth check failed, continue without filter (demo mode)
+  // Require authentication - each user only sees their own pets
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData?.user?.id) {
+    console.warn('getPets: No authenticated user');
+    return [];
   }
 
-  const { data, error } = await query;
+  const { data, error } = await supabase
+    .from(PETS_TABLE)
+    .select('*')
+    .eq('user_id', userData.user.id)
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Supabase getPets error', error);
@@ -192,21 +189,19 @@ export async function getPet(id: string): Promise<Pet | null> {
   const supabase = requireClient(false);
   if (!supabase) return null;
 
-  // DEMO MODE: Fetch pet by ID without user filter
-  // RLS policies allow public read access for demo purposes
-  let query = supabase.from(PETS_TABLE).select('*').eq('id', id);
-
-  // Only filter by user_id if user is authenticated
-  try {
-    const { data: userData } = await supabase.auth.getUser();
-    if (userData?.user?.id) {
-      query = query.eq('user_id', userData.user.id);
-    }
-  } catch {
-    // Auth check failed, continue without filter (demo mode)
+  // Require authentication - each user only sees their own pets
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData?.user?.id) {
+    console.warn('getPet: No authenticated user');
+    return null;
   }
 
-  const { data, error } = await query.maybeSingle();
+  const { data, error } = await supabase
+    .from(PETS_TABLE)
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', userData.user.id)
+    .maybeSingle();
 
   if (error) {
     // PGRST116 means "no rows found" - return null instead of throwing

@@ -53,18 +53,21 @@ export async function getAppointments(petId?: string): Promise<Appointment[]> {
   const supabase = requireClient(false);
   if (!supabase) return [];
 
+  // Require authentication - each user only sees their own appointments
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData?.user?.id) {
+    console.warn('getAppointments: No authenticated user');
+    return [];
+  }
+
   let query = supabase
     .from(APPOINTMENTS_TABLE)
     .select('*')
+    .eq('user_id', userData.user.id)
     .order('date', { ascending: true });
 
   if (petId) {
     query = query.eq('pet_id', petId);
-  }
-
-  const userId = typeof window !== 'undefined' ? (await supabase.auth.getUser()).data.user?.id : null;
-  if (userId) {
-    query = query.eq('user_id', userId);
   }
 
   const { data, error } = await query;

@@ -230,7 +230,7 @@ export function MobileNav({ onAssistantSummon }: MobileNavProps) {
                   {/* User Info */}
                   <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50 px-4 py-3">
                     <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-400">Signed in as</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-slate-900">{user?.email || "Guest (Demo)"}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-slate-900">{user?.email || "Loading..."}</p>
                   </div>
 
                   {/* Sign Out Button */}

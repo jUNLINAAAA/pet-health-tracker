@@ -6,9 +6,6 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
-// Demo credentials for local development
-const DEV_EMAIL = 'demo@pethealth.local';
-const DEV_PASSWORD = 'demo123456';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -61,14 +58,6 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickDevLogin = () => {
-    // Ensure dev user exists (creates if missing) then prefill credentials
-    fetch('/api/dev/ensure-dev-user', { method: 'POST' }).finally(() => {
-      setEmail(DEV_EMAIL);
-      setPassword(DEV_PASSWORD);
-    });
-  };
-
   return (
     <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-xl shadow-slate-200/50 border border-white/50 p-8">
       <div className="text-center mb-8">
@@ -94,27 +83,6 @@ export default function LoginPage() {
         >
           {error}
         </motion.div>
-      )}
-
-      {/* Dev Quick Login Banner */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-amber-800">Development Mode</p>
-              <p className="text-xs text-amber-600 mt-1">
-                Use demo credentials for quick testing
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleQuickDevLogin}
-              className="px-3 py-1.5 text-xs font-medium bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
-            >
-              Fill Demo Credentials
-            </button>
-          </div>
-        </div>
       )}
 
       <form onSubmit={handleLogin} className="space-y-5">

@@ -1,7 +1,8 @@
 /**
  * PRODUCTION ALERT SERVICE (Supabase)
  *
- * This is the production implementation for alerts. Keep it free of demo logic.
+ * This is the production implementation for alerts with proper authentication.
+ * All operations require an authenticated user.
  */
 
 import type { Alert, AlertCreateInput } from '../types';
@@ -51,18 +52,21 @@ export async function getAlerts(petId?: string): Promise<Alert[]> {
   const supabase = requireClient(false);
   if (!supabase) return [];
 
+  // Require authentication - each user only sees their own alerts
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData?.user?.id) {
+    console.warn('getAlerts: No authenticated user');
+    return [];
+  }
+
   let query = supabase
     .from(ALERTS_TABLE)
     .select('*')
+    .eq('user_id', userData.user.id)
     .order('created_at', { ascending: false });
 
   if (petId) {
     query = query.eq('pet_id', petId);
-  }
-
-  const userId = typeof window !== 'undefined' ? (await supabase.auth.getUser()).data.user?.id : null;
-  if (userId) {
-    query = query.eq('user_id', userId);
   }
 
   const { data, error } = await query;
@@ -72,6 +76,7 @@ export async function getAlerts(petId?: string): Promise<Alert[]> {
     throw error;
   }
 
+  console.log(`getAlerts: Found ${data?.length ?? 0} alerts for user`);
   return (data ?? []).map(mapAlert);
 }
 

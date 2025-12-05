@@ -56,15 +56,22 @@ async function requireUserId() {
 export async function getHealthRecords(petId?: string): Promise<HealthRecord[]> {
   const supabase = requireClient(false);
   if (!supabase) return [];
-  const query = supabase.from(HEALTH_RECORDS_TABLE).select('*').order('recorded_at', { ascending: false });
 
-  if (petId) {
-    query.eq('pet_id', petId);
+  // Require authentication - each user only sees their own health records
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData?.user?.id) {
+    console.warn('getHealthRecords: No authenticated user');
+    return [];
   }
 
-  const userId = typeof window !== 'undefined' ? (await supabase.auth.getUser()).data.user?.id : null;
-  if (userId) {
-    query.eq('user_id', userId);
+  let query = supabase
+    .from(HEALTH_RECORDS_TABLE)
+    .select('*')
+    .eq('user_id', userData.user.id)
+    .order('recorded_at', { ascending: false });
+
+  if (petId) {
+    query = query.eq('pet_id', petId);
   }
 
   const { data, error } = await query;

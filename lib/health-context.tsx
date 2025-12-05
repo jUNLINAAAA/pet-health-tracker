@@ -210,7 +210,9 @@ export function HealthProvider({ children }: { children: ReactNode }) {
         detailMap.set(entry.pet.id, entry);
         mergedAlerts.push(...entry.alerts);
         mergedAppointments.push(...entry.appointments);
+        console.log(`HealthContext: Pet ${entry.pet.name} has ${entry.alerts.length} alerts`);
       });
+      console.log(`HealthContext: Total merged alerts = ${mergedAlerts.length}`);
 
       setPets(validData.map((entry) => entry.pet));
       setAlerts(mergedAlerts);
@@ -232,23 +234,17 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Wait for auth session before loading data
-    // This prevents race conditions where data loads before auth is ready
-    const initializeWithAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        console.log('HealthContext: Auth session ready, loading data...');
-        loadData();
-      }
-    };
-
-    initializeWithAuth();
-
-    // Listen for auth state changes and reload data when user signs in
+    // Listen for auth state changes and load data appropriately
+    // IMPORTANT: onAuthStateChange fires INITIAL_SESSION immediately when registered,
+    // so we don't need a separate getSession() call - this avoids race conditions
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('HealthContext: Auth state changed:', event);
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('HealthContext: Auth state changed:', event, session ? 'with session' : 'no session');
+        if (event === 'INITIAL_SESSION' && session) {
+          // Handle page refresh with existing auth cookies
+          console.log('HealthContext: INITIAL_SESSION - loading data for existing session');
+          loadData();
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
           // Reload data when user signs in or token refreshes
           loadData();
         } else if (event === 'SIGNED_OUT') {

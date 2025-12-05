@@ -71,6 +71,9 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
   // Use shared health context for consistent data across dashboard
   const { pets, alerts, petScores, loading: isLoadingStats } = useHealth();
 
+  // Debug logging to track alerts loading
+  console.log('SidebarNav: pets count =', pets.length, 'alerts count =', alerts.length, 'loading =', isLoadingStats);
+
   // Calculate stats from the shared health context - same source as Dashboard
   const stats = useMemo<QuickStats>(() => {
     // Calculate wellness index from pet scores (SAME formula as Dashboard.tsx lines 67-72)
@@ -224,7 +227,7 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
             {/* User Email */}
             <div className="rounded-2xl border border-slate-100 bg-gradient-to-br from-white to-slate-50 px-5 py-4 shadow-sm">
               <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-slate-400">Signed in as</p>
-              <p className="mt-1.5 truncate text-sm font-semibold text-slate-900">{user?.email || "demo@example.com"}</p>
+              <p className="mt-1.5 truncate text-sm font-semibold text-slate-900">{user?.email || "Loading..."}</p>
             </div>
 
             {/* Quick Glance Stats - Live from Backend */}

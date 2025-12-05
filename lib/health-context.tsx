@@ -280,12 +280,8 @@ export function HealthProvider({ children }: { children: ReactNode }) {
             setAlerts(prev => [newAlert, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
             const updatedAlert = transformAlert(payload.new);
-            if (updatedAlert.resolved) {
-              // Remove resolved alerts from the list
-              setAlerts(prev => prev.filter(a => a.id !== updatedAlert.id));
-            } else {
-              setAlerts(prev => prev.map(a => a.id === updatedAlert.id ? updatedAlert : a));
-            }
+            // Keep resolved alerts in list so dashboard can count them
+            setAlerts(prev => prev.map(a => a.id === updatedAlert.id ? updatedAlert : a));
           } else if (payload.eventType === 'DELETE') {
             setAlerts(prev => prev.filter(a => a.id !== payload.old.id));
           }

@@ -57,17 +57,17 @@ export async function getHealthRecords(petId?: string): Promise<HealthRecord[]> 
   const supabase = requireClient(false);
   if (!supabase) return [];
 
-  // Require authentication - each user only sees their own health records
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData?.user?.id) {
-    console.warn('getHealthRecords: No authenticated user');
+  // Use getSession() instead of getUser() - faster, reads from local storage
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session?.user?.id) {
+    console.warn('getHealthRecords: No authenticated session');
     return [];
   }
 
   let query = supabase
     .from(HEALTH_RECORDS_TABLE)
     .select('*')
-    .eq('user_id', userData.user.id)
+    .eq('user_id', sessionData.session.user.id)
     .order('recorded_at', { ascending: false });
 
   if (petId) {

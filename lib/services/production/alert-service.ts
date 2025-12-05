@@ -52,17 +52,18 @@ export async function getAlerts(petId?: string): Promise<Alert[]> {
   const supabase = requireClient(false);
   if (!supabase) return [];
 
-  // Require authentication - each user only sees their own alerts
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData?.user?.id) {
-    console.warn('getAlerts: No authenticated user');
+  // Use getSession() instead of getUser() - faster, reads from local storage
+  // getUser() makes a network request which can fail/timeout during page load
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session?.user?.id) {
+    console.warn('getAlerts: No authenticated session');
     return [];
   }
 
   let query = supabase
     .from(ALERTS_TABLE)
     .select('*')
-    .eq('user_id', userData.user.id)
+    .eq('user_id', sessionData.session.user.id)
     .order('created_at', { ascending: false });
 
   if (petId) {

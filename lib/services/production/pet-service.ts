@@ -164,17 +164,17 @@ export async function getPets(): Promise<Pet[]> {
   const supabase = requireClient(false);
   if (!supabase) return [];
 
-  // Require authentication - each user only sees their own pets
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData?.user?.id) {
-    console.warn('getPets: No authenticated user');
+  // Use getSession() instead of getUser() - faster, reads from local storage
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session?.user?.id) {
+    console.warn('getPets: No authenticated session');
     return [];
   }
 
   const { data, error } = await supabase
     .from(PETS_TABLE)
     .select('*')
-    .eq('user_id', userData.user.id)
+    .eq('user_id', sessionData.session.user.id)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -189,10 +189,10 @@ export async function getPet(id: string): Promise<Pet | null> {
   const supabase = requireClient(false);
   if (!supabase) return null;
 
-  // Require authentication - each user only sees their own pets
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData?.user?.id) {
-    console.warn('getPet: No authenticated user');
+  // Use getSession() instead of getUser() - faster, reads from local storage
+  const { data: sessionData } = await supabase.auth.getSession();
+  if (!sessionData?.session?.user?.id) {
+    console.warn('getPet: No authenticated session');
     return null;
   }
 
@@ -200,7 +200,7 @@ export async function getPet(id: string): Promise<Pet | null> {
     .from(PETS_TABLE)
     .select('*')
     .eq('id', id)
-    .eq('user_id', userData.user.id)
+    .eq('user_id', sessionData.session.user.id)
     .maybeSingle();
 
   if (error) {

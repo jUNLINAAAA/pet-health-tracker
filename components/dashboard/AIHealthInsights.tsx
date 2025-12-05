@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
@@ -17,25 +17,28 @@ import {
   CheckCircle2,
   XCircle,
   RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 interface HealthInsight {
   id: string;
-  type: 'positive' | 'warning' | 'critical' | 'neutral';
-  title: string;
-  description: string;
+  petId: string;
+  userId: string;
+  insightType: string;
+  message: string;
+  severity: 'low' | 'medium' | 'high';
   confidence: number;
-  impact: 'high' | 'medium' | 'low';
-  category: 'prevention' | 'nutrition' | 'exercise' | 'medical' | 'behavior';
-  actionable: boolean;
-  action?: string;
-  trend?: 'improving' | 'stable' | 'declining';
-  metrics?: {
-    label: string;
-    value: string | number;
-    change?: string;
-  }[];
+  recommendation?: string;
+  dataPoints?: Array<{ label: string; value: string | number; change?: string }>;
+  scoreImpact: number;
+  acknowledged: boolean;
+  resolved: boolean;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PredictiveTrend {
@@ -68,126 +71,156 @@ export function AIHealthInsights({
 }: AIHealthInsightsProps) {
   const [activeInsight, setActiveInsight] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [insights, setInsights] = useState<HealthInsight[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
 
-  // Mock AI-generated insights based on health score and pet data
-  const insights: HealthInsight[] = useMemo(() => {
-    const baseInsights: HealthInsight[] = [];
+  // Fetch insights from API
+  const fetchInsights = useCallback(async () => {
+    try {
+      const url = petId
+        ? `/api/health-insights?petId=${petId}&resolved=false`
+        : '/api/health-insights?resolved=false';
 
-    if (healthScore >= 90) {
-      baseInsights.push({
-        id: '1',
-        type: 'positive',
-        title: 'Excellent Health Trajectory',
-        description: `${petName}'s health indicators are performing in the top 10% for ${breed} ${species}s of similar age.`,
-        confidence: 94,
-        impact: 'high',
-        category: 'medical',
-        actionable: false,
-        trend: 'improving',
-        metrics: [
-          { label: 'Overall Score', value: healthScore, change: '+3%' },
-          { label: 'Peer Ranking', value: 'Top 10%' },
-        ],
-      });
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('Failed to fetch insights');
+      }
+
+      const data = await response.json();
+      setInsights(data.insights || []);
+    } catch (error) {
+      console.error('Error fetching insights:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [petId]);
+
+  // Setup realtime subscription
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    if (!supabase) {
+      setIsLoading(false);
+      return;
     }
 
-    if (healthScore < 70) {
-      baseInsights.push({
-        id: '2',
-        type: 'warning',
-        title: 'Health Score Below Optimal',
-        description: 'AI analysis suggests scheduling a comprehensive health check within 2 weeks.',
-        confidence: 87,
-        impact: 'high',
-        category: 'prevention',
-        actionable: true,
-        action: 'Schedule Checkup',
-        trend: 'declining',
-        metrics: [
-          { label: 'Risk Level', value: 'Moderate' },
-          { label: 'Action Timeline', value: '2 weeks' },
-        ],
+    // Initial fetch
+    fetchInsights();
+
+    // Setup realtime subscription
+    const channel = supabase
+      .channel('ai_health_insights_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'ai_health_insights',
+          filter: petId ? `pet_id=eq.${petId}` : undefined,
+        },
+        (payload) => {
+          console.log('Realtime insight update:', payload);
+          setIsConnected(true);
+
+          if (payload.eventType === 'INSERT') {
+            const newInsight = transformInsight(payload.new);
+            if (!newInsight.resolved) {
+              setInsights((prev) => [newInsight, ...prev]);
+              toast.info(`New health insight: ${newInsight.message.slice(0, 50)}...`);
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedInsight = transformInsight(payload.new);
+            if (updatedInsight.resolved) {
+              // Remove resolved insights
+              setInsights((prev) => prev.filter((i) => i.id !== updatedInsight.id));
+            } else {
+              setInsights((prev) =>
+                prev.map((i) => (i.id === updatedInsight.id ? updatedInsight : i))
+              );
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setInsights((prev) => prev.filter((i) => i.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsConnected(status === 'SUBSCRIBED');
       });
-    }
 
-    if (weight > 30) {
-      baseInsights.push({
-        id: '3',
-        type: 'warning',
-        title: 'Weight Management Alert',
-        description: `Based on breed standards, ${petName} may benefit from a nutrition adjustment plan.`,
-        confidence: 82,
-        impact: 'medium',
-        category: 'nutrition',
-        actionable: true,
-        action: 'Get Diet Plan',
-        trend: 'stable',
-        metrics: [
-          { label: 'Current Weight', value: `${weight}kg` },
-          { label: 'Ideal Range', value: '20-25kg' },
-        ],
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [petId, fetchInsights]);
+
+  // Transform database record to frontend format
+  const transformInsight = (record: any): HealthInsight => ({
+    id: record.id,
+    petId: record.pet_id,
+    userId: record.user_id,
+    insightType: record.insight_type,
+    message: record.message,
+    severity: record.severity,
+    confidence: record.confidence,
+    recommendation: record.recommendation,
+    dataPoints: record.data_points,
+    scoreImpact: record.score_impact,
+    acknowledged: record.acknowledged,
+    resolved: record.resolved,
+    resolvedAt: record.resolved_at,
+    createdAt: record.created_at,
+    updatedAt: record.updated_at,
+  });
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchInsights();
+    setIsRefreshing(false);
+    toast.success('Insights refreshed');
+  };
+
+  const handleResolveInsight = async (insightId: string) => {
+    try {
+      const response = await fetch('/api/health-insights', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ insightId, action: 'resolve' }),
       });
-    }
 
-    if (age >= 7) {
-      baseInsights.push({
-        id: '4',
-        type: 'neutral',
-        title: 'Senior Care Recommendations',
-        description: 'AI suggests transitioning to senior-specific care protocols for optimal health maintenance.',
-        confidence: 91,
-        impact: 'medium',
-        category: 'prevention',
-        actionable: true,
-        action: 'View Senior Plan',
-        trend: 'stable',
-        metrics: [
-          { label: 'Life Stage', value: 'Senior' },
-          { label: 'Care Level', value: 'Enhanced' },
-        ],
+      if (!response.ok) {
+        throw new Error('Failed to resolve insight');
+      }
+
+      // Optimistic update - remove from list
+      setInsights((prev) => prev.filter((i) => i.id !== insightId));
+      toast.success('Insight resolved');
+    } catch (error) {
+      console.error('Error resolving insight:', error);
+      toast.error('Failed to resolve insight');
+    }
+  };
+
+  const handleAcknowledgeInsight = async (insightId: string) => {
+    try {
+      const response = await fetch('/api/health-insights', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ insightId, action: 'acknowledge' }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to acknowledge insight');
+      }
+
+      setInsights((prev) =>
+        prev.map((i) => (i.id === insightId ? { ...i, acknowledged: true } : i))
+      );
+    } catch (error) {
+      console.error('Error acknowledging insight:', error);
     }
+  };
 
-    baseInsights.push({
-      id: '5',
-      type: 'positive',
-      title: 'Vaccination Schedule Optimized',
-      description: 'All core vaccinations are up-to-date with smart reminders configured.',
-      confidence: 98,
-      impact: 'low',
-      category: 'medical',
-      actionable: false,
-      trend: 'stable',
-      metrics: [
-        { label: 'Compliance', value: '100%' },
-        { label: 'Next Due', value: '3 months' },
-      ],
-    });
-
-    if (species === 'dog') {
-      baseInsights.push({
-        id: '6',
-        type: 'neutral',
-        title: 'Exercise Pattern Analysis',
-        description: 'AI recommends 15% increase in daily activity based on breed energy requirements.',
-        confidence: 76,
-        impact: 'medium',
-        category: 'exercise',
-        actionable: true,
-        action: 'Activity Guide',
-        trend: 'stable',
-        metrics: [
-          { label: 'Current Activity', value: '45 min/day' },
-          { label: 'Recommended', value: '60 min/day' },
-        ],
-      });
-    }
-
-    return baseInsights;
-  }, [healthScore, petName, species, breed, age, weight]);
-
-  // Mock predictive trends
-  const predictiveTrends: PredictiveTrend[] = useMemo(() => [
+  // Predictive trends based on health score and pet data
+  const predictiveTrends: PredictiveTrend[] = [
     {
       metric: 'Health Score',
       current: healthScore,
@@ -212,54 +245,54 @@ export function AIHealthInsights({
       timeline: '4 weeks',
       risk: 'low',
     },
-  ], [healthScore, weight]);
+  ];
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    // Simulate AI processing
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsRefreshing(false);
+  const getTypeIcon = (type: string, severity: string) => {
+    if (type.includes('positive') || type.includes('improvement')) {
+      return CheckCircle2;
+    }
+    if (severity === 'high' || type.includes('concern')) {
+      return XCircle;
+    }
+    if (severity === 'medium' || type.includes('warning')) {
+      return AlertTriangle;
+    }
+    return Info;
   };
 
-  const getTypeIcon = (type: HealthInsight['type']) => {
-    switch (type) {
-      case 'positive':
-        return CheckCircle2;
-      case 'warning':
-        return AlertTriangle;
-      case 'critical':
-        return XCircle;
-      default:
-        return Info;
+  const getTypeColor = (type: string, severity: string) => {
+    if (type.includes('positive') || type.includes('improvement')) {
+      return 'from-emerald-500/90 to-green-600/90';
     }
+    if (severity === 'high') {
+      return 'from-red-500/90 to-rose-600/90';
+    }
+    if (severity === 'medium') {
+      return 'from-amber-500/90 to-orange-600/90';
+    }
+    return 'from-slate-500/90 to-slate-600/90';
   };
 
-  const getTypeColor = (type: HealthInsight['type']) => {
-    switch (type) {
-      case 'positive':
-        return 'from-emerald-500/90 to-green-600/90';
-      case 'warning':
-        return 'from-amber-500/90 to-orange-600/90';
-      case 'critical':
-        return 'from-red-500/90 to-rose-600/90';
-      default:
-        return 'from-slate-500/90 to-slate-600/90';
+  const getCategoryIcon = (type: string) => {
+    if (type.includes('weight') || type.includes('diet') || type.includes('nutrition')) {
+      return Shield;
     }
+    if (type.includes('activity') || type.includes('exercise')) {
+      return Activity;
+    }
+    if (type.includes('appointment') || type.includes('checkup') || type.includes('vaccination')) {
+      return Calendar;
+    }
+    if (type.includes('symptom') || type.includes('health') || type.includes('medical')) {
+      return Heart;
+    }
+    return Brain;
   };
 
-  const getCategoryIcon = (category: HealthInsight['category']) => {
-    switch (category) {
-      case 'medical':
-        return Heart;
-      case 'exercise':
-        return Activity;
-      case 'nutrition':
-        return Shield;
-      case 'prevention':
-        return Calendar;
-      default:
-        return Brain;
-    }
+  const getTrendFromScoreImpact = (scoreImpact: number) => {
+    if (scoreImpact > 0) return 'improving';
+    if (scoreImpact < 0) return 'declining';
+    return 'stable';
   };
 
   return (
@@ -291,11 +324,22 @@ export function AIHealthInsights({
       <div className="mb-4 rounded-2xl border border-emerald-200/50 bg-gradient-to-r from-emerald-50/80 to-green-50/80 p-3">
         <div className="flex items-center gap-2">
           <div className="relative">
-            <div className="absolute inset-0 animate-ping rounded-full bg-emerald-400" />
-            <div className="relative h-2 w-2 rounded-full bg-emerald-500" />
+            <div className={cn(
+              'absolute inset-0 rounded-full',
+              isConnected ? 'animate-ping bg-emerald-400' : 'bg-amber-400'
+            )} />
+            <div className={cn(
+              'relative h-2 w-2 rounded-full',
+              isConnected ? 'bg-emerald-500' : 'bg-amber-500'
+            )} />
           </div>
-          <span className="text-xs font-medium text-emerald-700">
-            AI actively monitoring {petName}&rsquo;s health patterns
+          <span className={cn(
+            'text-xs font-medium',
+            isConnected ? 'text-emerald-700' : 'text-amber-700'
+          )}>
+            {isConnected
+              ? `AI actively monitoring ${petName}'s health patterns`
+              : 'Connecting to realtime updates...'}
           </span>
         </div>
       </div>
@@ -334,7 +378,6 @@ export function AIHealthInsights({
                 <span>{trend.timeline}</span>
                 <span>{trend.confidence}% confidence</span>
               </div>
-              {/* Mini progress bar */}
               <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-100">
                 <motion.div
                   initial={{ width: 0 }}
@@ -353,108 +396,154 @@ export function AIHealthInsights({
         <h4 className="flex items-center gap-2 text-sm font-semibold text-slate-700">
           <Sparkles className="h-4 w-4 text-amber-500" />
           Smart Health Insights
+          {insights.length > 0 && (
+            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+              {insights.length} active
+            </span>
+          )}
         </h4>
-        <div className="space-y-3">
-          {insights.map((insight, index) => {
-            const TypeIcon = getTypeIcon(insight.type);
-            const CategoryIcon = getCategoryIcon(insight.category);
-            const isExpanded = activeInsight === insight.id;
 
-            return (
-              <motion.div
-                key={insight.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="overflow-hidden rounded-2xl border border-white/60 bg-white/90 shadow-sm backdrop-blur-sm"
-              >
-                <button
-                  onClick={() => setActiveInsight(isExpanded ? null : insight.id)}
-                  className="w-full p-4 text-left transition-colors hover:bg-white/95"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={cn(
-                      'rounded-xl bg-gradient-to-br p-2 text-white shadow-md',
-                      getTypeColor(insight.type)
-                    )}>
-                      <TypeIcon className="h-4 w-4" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="mb-1 flex items-center gap-2">
-                        <h5 className="font-semibold text-slate-900">{insight.title}</h5>
-                        {insight.trend && (
-                          <span className={cn(
-                            'rounded-full px-2 py-0.5 text-xs font-medium',
-                            insight.trend === 'improving' && 'bg-green-100 text-green-700',
-                            insight.trend === 'stable' && 'bg-blue-100 text-blue-700',
-                            insight.trend === 'declining' && 'bg-red-100 text-red-700'
-                          )}>
-                            {insight.trend === 'improving' && <TrendingUp className="inline h-3 w-3" />}
-                            {insight.trend === 'declining' && <TrendingDown className="inline h-3 w-3" />}
-                            {insight.trend}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-slate-600">{insight.description}</p>
-                      <div className="mt-2 flex items-center gap-4">
-                        <div className="flex items-center gap-1">
-                          <CategoryIcon className="h-3 w-3 text-slate-400" />
-                          <span className="text-xs text-slate-500">{insight.category}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="h-1 w-16 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
-                              style={{ width: `${insight.confidence}%` }}
-                            />
-                          </div>
-                          <span className="text-xs text-slate-500">{insight.confidence}% confidence</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </button>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
+            <span className="ml-2 text-sm text-slate-500">Loading insights...</span>
+          </div>
+        ) : insights.length === 0 ? (
+          <div className="rounded-2xl border border-slate-100 bg-white/80 p-6 text-center">
+            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
+            <p className="mt-2 text-sm font-medium text-slate-700">All clear!</p>
+            <p className="text-xs text-slate-500">
+              No active health insights for {petName}. Keep up the great care!
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {insights.map((insight, index) => {
+              const TypeIcon = getTypeIcon(insight.insightType, insight.severity);
+              const CategoryIcon = getCategoryIcon(insight.insightType);
+              const isExpanded = activeInsight === insight.id;
+              const trend = getTrendFromScoreImpact(insight.scoreImpact);
 
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="border-t border-slate-100"
-                    >
-                      <div className="p-4 pt-3">
-                        {insight.metrics && (
-                          <div className="mb-3 grid grid-cols-2 gap-3">
-                            {insight.metrics.map((metric) => (
-                              <div key={metric.label} className="rounded-xl bg-slate-50 p-2">
-                                <p className="text-xs text-slate-500">{metric.label}</p>
-                                <p className="font-semibold text-slate-900">
-                                  {metric.value}
-                                  {metric.change && (
-                                    <span className="ml-1 text-xs font-normal text-green-600">
-                                      {metric.change}
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {insight.actionable && insight.action && (
-                          <button className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg">
-                            {insight.action}
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
+              return (
+                <motion.div
+                  key={insight.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className={cn(
+                    'overflow-hidden rounded-2xl border bg-white/90 shadow-sm backdrop-blur-sm',
+                    !insight.acknowledged && 'border-indigo-200 ring-2 ring-indigo-100',
+                    insight.acknowledged && 'border-white/60'
                   )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </div>
+                >
+                  <button
+                    onClick={() => {
+                      setActiveInsight(isExpanded ? null : insight.id);
+                      if (!insight.acknowledged) {
+                        handleAcknowledgeInsight(insight.id);
+                      }
+                    }}
+                    className="w-full p-4 text-left transition-colors hover:bg-white/95"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={cn(
+                        'rounded-xl bg-gradient-to-br p-2 text-white shadow-md',
+                        getTypeColor(insight.insightType, insight.severity)
+                      )}>
+                        <TypeIcon className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="mb-1 flex items-center gap-2">
+                          <h5 className="font-semibold text-slate-900">
+                            {insight.insightType.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                          </h5>
+                          {trend !== 'stable' && (
+                            <span className={cn(
+                              'rounded-full px-2 py-0.5 text-xs font-medium',
+                              trend === 'improving' && 'bg-green-100 text-green-700',
+                              trend === 'declining' && 'bg-red-100 text-red-700'
+                            )}>
+                              {trend === 'improving' && <TrendingUp className="inline h-3 w-3" />}
+                              {trend === 'declining' && <TrendingDown className="inline h-3 w-3" />}
+                              {trend}
+                            </span>
+                          )}
+                          {!insight.acknowledged && (
+                            <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-600">{insight.message}</p>
+                        <div className="mt-2 flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <CategoryIcon className="h-3 w-3 text-slate-400" />
+                            <span className="text-xs text-slate-500">{insight.severity}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="h-1 w-16 overflow-hidden rounded-full bg-slate-100">
+                              <div
+                                className="h-full bg-gradient-to-r from-indigo-500 to-violet-500"
+                                style={{ width: `${insight.confidence * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-slate-500">{Math.round(insight.confidence * 100)}% confidence</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="border-t border-slate-100"
+                      >
+                        <div className="p-4 pt-3">
+                          {insight.dataPoints && insight.dataPoints.length > 0 && (
+                            <div className="mb-3 grid grid-cols-2 gap-3">
+                              {insight.dataPoints.map((metric, idx) => (
+                                <div key={idx} className="rounded-xl bg-slate-50 p-2">
+                                  <p className="text-xs text-slate-500">{metric.label}</p>
+                                  <p className="font-semibold text-slate-900">
+                                    {metric.value}
+                                    {metric.change && (
+                                      <span className="ml-1 text-xs font-normal text-green-600">
+                                        {metric.change}
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {insight.recommendation && (
+                            <p className="mb-3 text-sm text-slate-600">
+                              <strong>Recommendation:</strong> {insight.recommendation}
+                            </p>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleResolveInsight(insight.id);
+                            }}
+                            className="w-full rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-4 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg"
+                          >
+                            Mark as Resolved
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* AI Confidence Score */}

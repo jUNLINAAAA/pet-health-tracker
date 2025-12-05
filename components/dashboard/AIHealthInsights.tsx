@@ -58,6 +58,7 @@ interface AIHealthInsightsProps {
   breed?: string;
   age?: number;
   weight?: number;
+  activityScore?: number;
 }
 
 export function AIHealthInsights({
@@ -68,6 +69,7 @@ export function AIHealthInsights({
   breed = 'Mixed',
   age = 5,
   weight = 25,
+  activityScore = 70,
 }: AIHealthInsightsProps) {
   const [activeInsight, setActiveInsight] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -239,11 +241,11 @@ export function AIHealthInsights({
     },
     {
       metric: 'Activity Level',
-      current: 65,
-      predicted: 75,
+      current: activityScore,
+      predicted: Math.min(100, activityScore + 10),
       confidence: 81,
       timeline: '4 weeks',
-      risk: 'low',
+      risk: activityScore < 50 ? 'medium' : 'low',
     },
   ];
 

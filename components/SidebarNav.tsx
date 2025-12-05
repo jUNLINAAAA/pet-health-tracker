@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Surface } from "@/components/ui/Surface";
 import { motion } from "framer-motion";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { useHealth } from "@/lib/health-context";
 
 const navigationItems = [
   { name: "Dashboard", href: "/dashboard", icon: Home, exact: true },
@@ -65,81 +66,39 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [user, setUser] = useState<UserData | null>(null);
-  const [stats, setStats] = useState<QuickStats>({
-    wellnessIndex: 0,
-    wellnessChange: 0,
-    alertsResolved: 0,
-    alertsTotal: 0,
-    resolvedPercent: 0,
-  });
-  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const supabase = getSupabaseBrowserClient();
-      if (!supabase) return;
+  // Use shared health context for consistent data across dashboard
+  const { pets, alerts, petScores, loading: isLoadingStats } = useHealth();
 
-      // Fetch all pets with their health scores
-      const { data: pets } = await supabase
-        .from('pets')
-        .select('id, name')
-        .limit(50);
+  // Calculate stats from the shared health context - same source as Dashboard
+  const stats = useMemo<QuickStats>(() => {
+    // Calculate wellness index from pet scores (same as Dashboard)
+    const scores = Array.from(petScores.values());
+    const avgScore = scores.length > 0
+      ? Math.round(scores.reduce((sum, s) => sum + s.overall, 0) / scores.length)
+      : 0;
 
-      let totalScore = 0;
-      let petCount = 0;
+    // Calculate alerts stats - last 7 days
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recentAlerts = alerts.filter(a => {
+      const alertDate = new Date(a.createdAt).getTime();
+      return alertDate >= oneWeekAgo;
+    });
 
-      if (pets && pets.length > 0) {
-        // Calculate wellness index from health scores
-        for (const pet of pets) {
-          try {
-            const res = await fetch(`/api/health-score?petId=${pet.id}`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data.overall) {
-                totalScore += data.overall;
-                petCount++;
-              }
-            }
-          } catch {
-            // Skip failed requests
-          }
-        }
-      }
+    const totalAlerts = recentAlerts.length;
+    const resolvedAlerts = recentAlerts.filter(a => a.resolved).length;
+    const resolvedPercent = totalAlerts > 0 ? Math.round((resolvedAlerts / totalAlerts) * 100) : 0;
 
-      const avgScore = petCount > 0 ? Math.round(totalScore / petCount) : 85;
+    return {
+      wellnessIndex: avgScore,
+      wellnessChange: 0,
+      alertsResolved: resolvedAlerts,
+      alertsTotal: totalAlerts,
+      resolvedPercent,
+    };
+  }, [pets, alerts, petScores]);
 
-      // Fetch alerts stats
-      const { data: alerts } = await supabase
-        .from('alerts')
-        .select('id, is_resolved, created_at')
-        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
-
-      const totalAlerts = alerts?.length || 0;
-      const resolvedAlerts = alerts?.filter(a => a.is_resolved).length || 0;
-      const resolvedPercent = totalAlerts > 0 ? Math.round((resolvedAlerts / totalAlerts) * 100) : 0;
-
-      setStats({
-        wellnessIndex: avgScore,
-        wellnessChange: 0, // Would need historical data to calculate
-        alertsResolved: resolvedAlerts,
-        alertsTotal: totalAlerts,
-        resolvedPercent,
-      });
-    } catch (error) {
-      console.error("Error fetching stats:", error);
-      // Use defaults on error
-      setStats({
-        wellnessIndex: 85,
-        wellnessChange: 0,
-        alertsResolved: 0,
-        alertsTotal: 0,
-        resolvedPercent: 0,
-      });
-    } finally {
-      setIsLoadingStats(false);
-    }
-  }, []);
-
+  // Fetch user data on mount
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -159,35 +118,8 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
     };
 
     fetchUser();
-    fetchStats();
-
-    // Set up real-time subscription for alerts changes
-    const supabase = getSupabaseBrowserClient();
-    if (supabase) {
-      const alertsChannel = supabase
-        .channel('sidebar-alerts-changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'alerts' }, () => {
-          fetchStats();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'health_records' }, () => {
-          fetchStats();
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'pets' }, () => {
-          fetchStats();
-        })
-        .subscribe();
-
-      // Also poll every 30 seconds as backup
-      const pollInterval = setInterval(() => {
-        fetchStats();
-      }, 30000);
-
-      return () => {
-        supabase.removeChannel(alertsChannel);
-        clearInterval(pollInterval);
-      };
-    }
-  }, [fetchStats]);
+    // Note: Stats are now derived from useHealth() which has its own realtime subscriptions
+  }, []);
 
   const handleLogout = async () => {
     try {

@@ -28,6 +28,42 @@ const isAlertResolved = (alert: Alert): boolean => {
   return alert.status === 'resolved' || alert.resolved === true;
 };
 
+const alertInsights = (alert: Alert, pet?: Pet) => {
+  const items: { title: string; detail: string }[] = [];
+
+  items.push({
+    title: 'Severity',
+    detail: alert.severity === 'high'
+      ? 'Critical threshold breached—monitor closely or call your vet.'
+      : alert.severity === 'medium'
+        ? 'Moderate issue detected—address soon.'
+        : 'Minor signal—keep an eye on it.',
+  });
+
+  if (pet?.species) {
+    items.push({
+      title: 'Species context',
+      detail: `${pet.species}${pet.breed ? ` (${pet.breed})` : ''} ranges drive this alert.`,
+    });
+  }
+
+  if (alert.type) {
+    items.push({
+      title: 'Trigger',
+      detail: `Raised for ${alert.type.replace(/_/g, ' ')} based on your saved records.`,
+    });
+  }
+
+  if (alert.recommendation) {
+    items.push({
+      title: 'Next step',
+      detail: alert.recommendation,
+    });
+  }
+
+  return items;
+};
+
 export default function AlertsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -249,16 +285,28 @@ export default function AlertsPage() {
                   <p className="text-sm">{selectedAlert.recommendation || 'No specific recommendation provided.'}</p>
             </div>
                 
-                <div>
-                  <h3 className="text-sm font-medium mb-1">Pet Information</h3>
-                  <div className="bg-slate-50 p-3 rounded-lg">
-                    <p className="text-sm font-medium">{getPetForAlert(selectedAlert)?.name || 'Unknown Pet'}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {getPetForAlert(selectedAlert)?.species || 'Unknown Species'}
-                      {getPetForAlert(selectedAlert)?.breed ? ` • ${getPetForAlert(selectedAlert)?.breed}` : ''}
-                    </p>
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">Pet Information</h3>
+                    <div className="bg-slate-50 p-3 rounded-lg">
+                      <p className="text-sm font-medium">{getPetForAlert(selectedAlert)?.name || 'Unknown Pet'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {getPetForAlert(selectedAlert)?.species || 'Unknown Species'}
+                        {getPetForAlert(selectedAlert)?.breed ? ` • ${getPetForAlert(selectedAlert)?.breed}` : ''}
+                      </p>
+                    </div>
                   </div>
-                </div>
+
+                  <div>
+                    <h3 className="text-sm font-medium mb-1">Quick insights</h3>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {alertInsights(selectedAlert, getPetForAlert(selectedAlert)).map((item, idx) => (
+                        <div key={idx} className="rounded-xl border border-slate-100 bg-white/70 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">{item.title}</p>
+                          <p className="text-sm text-slate-700 mt-1 leading-snug">{item.detail}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 
                 {isAlertResolved(selectedAlert) && selectedAlert.resolvedAt && (
                   <div>

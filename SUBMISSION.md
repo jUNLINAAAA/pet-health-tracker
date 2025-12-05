@@ -54,8 +54,11 @@ open http://localhost:3000
 
 - **Historical Charts**: Weight, activity, and score trends now display real backend data (60-day history)
 - **Realtime Updates**: Dashboard syncs instantly via Supabase Realtime subscriptions
-- **Intelligent Alerts**: Automated alert generation based on health data analysis
+- **Comprehensive Alerts**: Rule-based alerts analyze ALL metrics (weight, activity, appetite, temperature, heart rate, clinical notes, vaccinations)
 - **Auth Session Handling**: Fixed race condition ensuring data loads after authentication completes
+- **Multi-User Support**: Full data isolation with Row Level Security (RLS) - each user sees only their own data
+- **Quick Insights**: Sidebar shows wellness index and alert status computed live from backend
+- **Sparklines**: Activity trend charts display proper time-series data from Edge Function
 
 ---
 

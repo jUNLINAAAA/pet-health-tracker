@@ -277,11 +277,21 @@ export function HealthProvider({ children }: { children: ReactNode }) {
 
           if (payload.eventType === 'INSERT') {
             const newAlert = transformAlert(payload.new);
-            setAlerts(prev => [newAlert, ...prev]);
+            setAlerts(prev => {
+              // Deduplicate to avoid double inserts from retries
+              const withoutExisting = prev.filter(a => a.id !== newAlert.id);
+              return [newAlert, ...withoutExisting];
+            });
           } else if (payload.eventType === 'UPDATE') {
             const updatedAlert = transformAlert(payload.new);
             // Keep resolved alerts in list so dashboard can count them
-            setAlerts(prev => prev.map(a => a.id === updatedAlert.id ? updatedAlert : a));
+            setAlerts(prev => {
+              const exists = prev.some(a => a.id === updatedAlert.id);
+              if (!exists) {
+                return [updatedAlert, ...prev];
+              }
+              return prev.map(a => a.id === updatedAlert.id ? updatedAlert : a);
+            });
           } else if (payload.eventType === 'DELETE') {
             setAlerts(prev => prev.filter(a => a.id !== payload.old.id));
           }

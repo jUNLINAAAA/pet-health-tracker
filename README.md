@@ -101,7 +101,9 @@ Pet owners face several challenges in managing their pets' health:
 | **AI Health Assistant** | Natural language pet health Q&A | LLM with RAG on pet data |
 | **Realtime Updates** | Live dashboard updates without refresh | Supabase Realtime subscriptions |
 | **Historical Charts** | Weight, activity, and score trends over time | Edge Function with 60-day data |
-| **Intelligent Alerts** | Automated health concern detection | Rule-based engine + trend analysis |
+| **Intelligent Alerts** | Automated health concern detection | Rule-based engine analyzing ALL metrics |
+| **Multi-User Support** | Each user has isolated data | Row Level Security (RLS) policies |
+| **Quick Insights** | Sidebar with wellness index and alert status | Live computed from user's data |
 
 ### Health Score Algorithm
 
@@ -433,15 +435,19 @@ python3 tests/stress-test-algorithm.py
 
 **How Alerts Are Generated**:
 
-| Trigger | Alert Type | Severity | Example |
-|---------|------------|----------|---------|
-| Weight change >10% in 30 days | weight_change | medium | "Max gained 3kg in the past month" |
-| Weight change >20% in 30 days | weight_change | high | "Luna lost 1.5kg rapidly" |
-| No vaccination in 365 days | vaccination_due | medium | "Buddy's vaccinations are overdue" |
-| No vet checkup in 365 days | checkup_reminder | low | "Annual checkup recommended" |
-| BCS 8-9 (obese) | obesity_warning | high | "Weight indicates obesity" |
-| BCS 1-2 (underweight) | underweight_warning | high | "Severely underweight" |
-| Abnormal lab results (from OCR) | abnormal_lab | medium/high | "Elevated liver enzymes detected" |
+The alert system analyzes ALL collected health metrics to generate comprehensive alerts:
+
+| Metric | Alert Types | Severity | Clinical Basis |
+|--------|-------------|----------|----------------|
+| **Weight** | obese, overweight, underweight, rapid_weight_gain, rapid_weight_loss | low-high | BCS scale (Laflamme 1997) + breed-specific ideals |
+| **Activity** | severely_low_activity, low_activity, moderate_activity | medium-high | AAHA exercise guidelines, age-adjusted |
+| **Appetite** | poor_appetite, reduced_appetite, excessive_appetite | low-high | 1-5 scale; abnormal = possible illness |
+| **Temperature** | critical_fever, fever, hypothermia, low_temperature | medium-high | Species-specific ranges (Dogs: 38-39.2°C) |
+| **Heart Rate** | critical_tachycardia, elevated_heart_rate, critical_bradycardia, low_heart_rate | medium-high | Species-specific (Dogs: 60-140 bpm, Cats: 140-220 bpm) |
+| **Vaccinations** | vaccination_overdue, vaccination_due_soon, no_vaccination_record | low-high | Annual booster schedule |
+| **Age** | senior_pet, geriatric_pet, impossible_age | low-medium | Life expectancy by species/breed |
+| **Clinical Notes** | urgent_clinical_attention, followup_reminder, medication_check, condition_monitoring | medium-high | OCR-extracted vet records |
+| **Tracking** | no_recent_tracking | low | Encourages consistent data logging |
 
 **Alert Severity Levels**:
 | Level | Meaning | Action |

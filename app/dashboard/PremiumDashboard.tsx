@@ -93,23 +93,34 @@ export default function PremiumDashboard() {
 
     const msInDay = 1000 * 60 * 60 * 24;
 
-    // Get historical weight data from petScores (uses health_records history)
-    const allWeightHistory: number[] = [];
+    // Get historical data from petScores (from Edge Function)
+    // For meaningful sparklines, we need to handle different metrics appropriately
+    const allActivityHistory: number[] = [];
     const allScoreHistory: number[] = [];
+    const latestWeightsPerPet: number[] = [];
 
     Array.from(petScores.values()).forEach((score) => {
-      // Use historical data from Edge Function if available
-      if (score.history?.weights?.length > 0) {
-        allWeightHistory.push(...score.history.weights.filter((w: number) => w > 0));
+      // Use activity history for trend (activity minutes are comparable across pets)
+      if (score.history?.activities?.length > 0) {
+        allActivityHistory.push(...score.history.activities.filter((a: number) => a > 0));
       }
+      // Use score history for trend (scores are 0-100 and comparable)
       if (score.history?.scores?.length > 0) {
         allScoreHistory.push(...score.history.scores.filter((s: number) => s > 0));
+      }
+      // For weight, only use the LATEST weight per pet (not all history)
+      // because different pets have vastly different weight scales
+      if (score.history?.weights?.length > 0) {
+        const weights = score.history.weights.filter((w: number) => w > 0);
+        if (weights.length > 0) {
+          latestWeightsPerPet.push(weights[weights.length - 1]);
+        }
       }
     });
 
     // Fallback to current pet weights if no history
-    const trackedWeights = allWeightHistory.length > 0
-      ? allWeightHistory
+    const trackedWeights = latestWeightsPerPet.length > 0
+      ? latestWeightsPerPet
       : pets
           .map((pet) => pet.weight)
           .filter((weight): weight is number => typeof weight === "number" && !Number.isNaN(weight));
@@ -118,7 +129,12 @@ export default function PremiumDashboard() {
       trackedWeights.length > 0
         ? trackedWeights.reduce((sum, weight) => sum + weight, 0) / trackedWeights.length
         : 0;
-    const weightSparkline = (trackedWeights.length ? trackedWeights : [avgWeight || 0]).slice(-9);
+
+    // For weight sparkline, show activity trend instead (more meaningful time-series)
+    // Activity minutes are comparable across pets and show engagement over time
+    const weightSparkline = allActivityHistory.length > 2
+      ? allActivityHistory.slice(-9)
+      : (trackedWeights.length ? trackedWeights : [avgWeight || 0]).slice(-9);
 
     const upcomingAppts = appointments
       .filter((appt) => !appt.completed && appt.date)
@@ -151,18 +167,25 @@ export default function PremiumDashboard() {
       : 0;
     const scoreSparkline = (scoreValues.length ? scoreValues : [avgScore]).slice(-9);
 
+    // Calculate activity stats for display
+    const avgActivity = allActivityHistory.length > 0
+      ? Math.round(allActivityHistory.reduce((sum, a) => sum + a, 0) / allActivityHistory.length)
+      : 0;
+
     return [
       {
         title: "Weight tracking",
         value: avgWeight.toFixed(1),
         unit: trackedWeights.length ? "kg avg" : undefined,
-        trend: "neutral" as const,
-        trendValue: `${trackedWeights.length}/${pets.length} logged`,
-        trendLabel: "tracked pets",
+        trend: allActivityHistory.length > 1 ? "up" as const : "neutral" as const,
+        trendValue: allActivityHistory.length > 0
+          ? `${avgActivity} min/day avg`
+          : `${trackedWeights.length}/${pets.length} logged`,
+        trendLabel: allActivityHistory.length > 0 ? "activity trend" : "tracked pets",
         icon: TrendingDown,
         sparklineData: weightSparkline,
         color: "green",
-        context: "Uses the latest weight saved for each pet. Update weights after every vet visit.",
+        context: `Average weight: ${avgWeight.toFixed(1)}kg. Chart shows activity trends (${allActivityHistory.length} data points).`,
       },
       {
         title: "Vet schedule",
@@ -194,8 +217,10 @@ export default function PremiumDashboard() {
         title: "Score sync",
         value: avgScore,
         unit: "/100",
-        trend: "neutral" as const,
-        trendValue: `${petScores.size} synced`,
+        trend: allScoreHistory.length > 1 ? "up" as const : "neutral" as const,
+        trendValue: allScoreHistory.length > 0
+          ? `${allScoreHistory.length} scores`
+          : `${petScores.size} synced`,
         trendLabel: "pets",
         icon: Heart,
         sparklineData: scoreSparkline,

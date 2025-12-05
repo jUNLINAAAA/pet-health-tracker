@@ -131,14 +131,90 @@ export function HealthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     const startTime = Date.now();
     try {
-      // PERFORMANCE: Load all data in parallel instead of per-pet sequential calls
-      // This reduces API calls from 5*N to 5 total
-      const [basePets, allAlerts, allAppointments, allHealthRecords] = await Promise.all([
-        resolvePets(),
-        AlertService.getAlerts().catch((e) => { console.warn('Failed to load alerts:', e); return []; }),
-        AppointmentService.getAppointments().catch((e) => { console.warn('Failed to load appointments:', e); return []; }),
-        HealthRecordService.getHealthRecords().catch((e) => { console.warn('Failed to load health records:', e); return []; }),
+      // Get supabase client and verify session exists before loading
+      const supabase = getSupabaseBrowserClient();
+      if (!supabase) {
+        console.warn('HealthContext loadData: No Supabase client');
+        setLoading(false);
+        return;
+      }
+
+      // Verify session is still valid
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) {
+        console.warn('HealthContext loadData: No session, skipping data load');
+        setLoading(false);
+        return;
+      }
+
+      const userId = session.user.id;
+      console.log('HealthContext loadData: Starting with userId =', userId);
+
+      // Load pets from service layer
+      const basePets = await resolvePets();
+      console.log('HealthContext loadData: Got', basePets.length, 'pets');
+
+      // CRITICAL FIX: Query alerts/appointments/health_records directly with known userId
+      // This avoids race conditions with service layer's separate session checks
+      const [alertsResult, appointmentsResult, healthRecordsResult] = await Promise.all([
+        supabase
+          .from('alerts')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('appointments')
+          .select('*')
+          .eq('user_id', userId)
+          .order('date', { ascending: true }),
+        supabase
+          .from('health_records')
+          .select('*')
+          .eq('user_id', userId)
+          .order('recorded_at', { ascending: false }),
       ]);
+
+      // Map results, handling any errors
+      const allAlerts: Alert[] = (alertsResult.data ?? []).map((row: any) => ({
+        id: row.id,
+        petId: row.pet_id,
+        type: row.type,
+        severity: row.severity,
+        message: row.message,
+        recommendation: row.recommendation,
+        resolved: row.resolved ?? false,
+        resolvedAt: row.resolved_at,
+        createdAt: row.created_at,
+      }));
+
+      const allAppointments: Appointment[] = (appointmentsResult.data ?? []).map((row: any) => ({
+        id: row.id,
+        petId: row.pet_id,
+        title: row.title,
+        date: row.date,
+        time: row.time,
+        status: (row.status ?? 'scheduled').toLowerCase() as Appointment['status'],
+        location: row.location,
+        veterinarian: row.veterinarian,
+        notes: row.notes,
+        completed: row.completed ?? row.status === 'completed',
+        createdAt: row.created_at,
+      }));
+
+      const allHealthRecords = (healthRecordsResult.data ?? []).map((row: any) => ({
+        id: row.id,
+        petId: row.pet_id,
+        type: row.type,
+        value: typeof row.value === 'string' ? parseFloat(row.value) : row.value,
+        unit: row.unit,
+        notes: row.notes,
+        recordedAt: row.recorded_at,
+        createdAt: row.created_at,
+      }));
+
+      if (alertsResult.error) console.error('HealthContext: Alerts query error:', alertsResult.error);
+      if (appointmentsResult.error) console.error('HealthContext: Appointments query error:', appointmentsResult.error);
+      if (healthRecordsResult.error) console.error('HealthContext: Health records query error:', healthRecordsResult.error);
 
       console.log(`HealthContext: Loaded ${basePets.length} pets, ${allAlerts.length} alerts, ${allAppointments.length} appointments in ${Date.now() - startTime}ms`);
 

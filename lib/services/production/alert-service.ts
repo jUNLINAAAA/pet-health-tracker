@@ -50,11 +50,16 @@ async function requireUserId() {
 
 export async function getAlerts(petId?: string): Promise<Alert[]> {
   const supabase = requireClient(false);
-  if (!supabase) return [];
+  if (!supabase) {
+    console.warn('getAlerts: No Supabase client');
+    return [];
+  }
 
   // Use getSession() instead of getUser() - faster, reads from local storage
   // getUser() makes a network request which can fail/timeout during page load
-  const { data: sessionData } = await supabase.auth.getSession();
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  console.log('getAlerts: Session check -', sessionData?.session ? `user: ${sessionData.session.user.id}` : 'no session', sessionError ? `error: ${sessionError.message}` : '');
+
   if (!sessionData?.session?.user?.id) {
     console.warn('getAlerts: No authenticated session');
     return [];

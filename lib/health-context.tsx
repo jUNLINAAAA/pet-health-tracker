@@ -229,25 +229,41 @@ export function HealthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
+      console.log('HealthContext: No Supabase client, loading data directly');
       loadData();
       return;
     }
 
-    // Listen for auth state changes and load data appropriately
-    // IMPORTANT: onAuthStateChange fires INITIAL_SESSION immediately when registered,
-    // so we don't need a separate getSession() call - this avoids race conditions
+    let hasLoadedData = false;
+
+    // Try to get session immediately and load data
+    // This handles the case where session is available but INITIAL_SESSION hasn't fired yet
+    const tryLoadData = async () => {
+      if (hasLoadedData) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('HealthContext: Checking session...', session ? 'found' : 'none');
+      if (session) {
+        hasLoadedData = true;
+        console.log('HealthContext: Session found, loading data');
+        loadData();
+      }
+    };
+
+    // Try immediately
+    tryLoadData();
+
+    // Also listen for auth state changes
     const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('HealthContext: Auth state changed:', event, session ? 'with session' : 'no session');
-        if (event === 'INITIAL_SESSION' && session) {
-          // Handle page refresh with existing auth cookies
-          console.log('HealthContext: INITIAL_SESSION - loading data for existing session');
-          loadData();
-        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          // Reload data when user signs in or token refreshes
-          loadData();
+        console.log('HealthContext: Auth event:', event, session ? 'with session' : 'no session');
+        if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+          if (!hasLoadedData) {
+            hasLoadedData = true;
+            console.log('HealthContext: Loading data from auth event');
+            loadData();
+          }
         } else if (event === 'SIGNED_OUT') {
-          // Clear data when user signs out
+          hasLoadedData = false;
           setPets([]);
           setAlerts([]);
           setAppointments([]);

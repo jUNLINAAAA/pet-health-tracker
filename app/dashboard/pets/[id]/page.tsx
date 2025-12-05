@@ -150,17 +150,23 @@ export default function PetProfilePage() {
     if (!effectivePet) return;
     setDeleting(true);
     try {
-      // Delete pet images from storage
-      await StorageService.deleteAllPetImages(effectivePet.id);
-      // Delete the pet
+      // Try to delete pet images from storage (don't block on failure)
+      try {
+        await StorageService.deleteAllPetImages(effectivePet.id);
+      } catch (storageError) {
+        console.warn("Storage cleanup failed (non-blocking):", storageError);
+      }
+
+      // Delete the pet - this also cascade deletes alerts, appointments, records via DB constraints
       await PetService.deletePet(effectivePet.id);
       toast.success("Pet deleted successfully");
-      await reload();
+
+      // Navigate first, then reload in background
       router.push("/dashboard/pets");
+      reload().catch(console.error);
     } catch (error) {
       console.error("Error deleting pet:", error);
       toast.error("Failed to delete pet. Please try again.");
-    } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
     }

@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { type UnifiedHealthScore } from './unified-health-system';
 import { type PetHealthData } from '@/lib/pets/health-data';
-import { PetService } from '@/lib/services';
+import { PetService, AlertService, AppointmentService, HealthRecordService } from '@/lib/services';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 // Pet type
@@ -135,24 +135,9 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       // This reduces API calls from 5*N to 5 total
       const [basePets, allAlerts, allAppointments, allHealthRecords] = await Promise.all([
         resolvePets(),
-        (async () => {
-          try {
-            const { AlertService } = await import('@/lib/services');
-            return AlertService.getAlerts(); // No petId = all alerts for user
-          } catch { return []; }
-        })(),
-        (async () => {
-          try {
-            const { AppointmentService } = await import('@/lib/services');
-            return AppointmentService.getAppointments(); // No petId = all appointments for user
-          } catch { return []; }
-        })(),
-        (async () => {
-          try {
-            const { HealthRecordService } = await import('@/lib/services');
-            return HealthRecordService.getHealthRecords(); // No petId = all records for user
-          } catch { return []; }
-        })(),
+        AlertService.getAlerts().catch((e) => { console.warn('Failed to load alerts:', e); return []; }),
+        AppointmentService.getAppointments().catch((e) => { console.warn('Failed to load appointments:', e); return []; }),
+        HealthRecordService.getHealthRecords().catch((e) => { console.warn('Failed to load health records:', e); return []; }),
       ]);
 
       console.log(`HealthContext: Loaded ${basePets.length} pets, ${allAlerts.length} alerts, ${allAppointments.length} appointments in ${Date.now() - startTime}ms`);

@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { type UnifiedHealthScore } from './unified-health-system';
-import { loadPetHealthData, type PetHealthData } from '@/lib/pets/health-data';
+import { type PetHealthData } from '@/lib/pets/health-data';
 import { PetService } from '@/lib/services';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
@@ -129,8 +129,33 @@ export function HealthProvider({ children }: { children: ReactNode }) {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    const startTime = Date.now();
     try {
-      const basePets = await resolvePets();
+      // PERFORMANCE: Load all data in parallel instead of per-pet sequential calls
+      // This reduces API calls from 5*N to 5 total
+      const [basePets, allAlerts, allAppointments, allHealthRecords] = await Promise.all([
+        resolvePets(),
+        (async () => {
+          try {
+            const { AlertService } = await import('@/lib/services');
+            return AlertService.getAlerts(); // No petId = all alerts for user
+          } catch { return []; }
+        })(),
+        (async () => {
+          try {
+            const { AppointmentService } = await import('@/lib/services');
+            return AppointmentService.getAppointments(); // No petId = all appointments for user
+          } catch { return []; }
+        })(),
+        (async () => {
+          try {
+            const { HealthRecordService } = await import('@/lib/services');
+            return HealthRecordService.getHealthRecords(); // No petId = all records for user
+          } catch { return []; }
+        })(),
+      ]);
+
+      console.log(`HealthContext: Loaded ${basePets.length} pets, ${allAlerts.length} alerts, ${allAppointments.length} appointments in ${Date.now() - startTime}ms`);
 
       if (basePets.length === 0) {
         setPets([]);
@@ -141,82 +166,71 @@ export function HealthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const hydrated = await Promise.all(
-        basePets.map(async (pet) => {
-          try {
-            const data = await loadPetHealthData(pet.id);
-            if (data) return data;
+      // Group data by petId for fast lookup
+      const alertsByPet = new Map<string, Alert[]>();
+      const appointmentsByPet = new Map<string, Appointment[]>();
+      const recordsByPet = new Map<string, any[]>();
 
-            // Fallback: create minimal health data for the pet
-            console.warn('Creating fallback health data for pet', pet.id);
-            const fallbackScore = createFallbackScore();
-            return {
-              pet,
-              alerts: [],
-              appointments: [],
-              healthRecords: [],
-              healthScore: fallbackScore,
-            } as PetHealthData;
-          } catch (error) {
-            console.error('Failed to load health data for pet', pet.id, error);
-            // Even on error, return fallback data so the pet shows up
-            const fallbackScore = createFallbackScore();
-            return {
-              pet,
-              alerts: [],
-              appointments: [],
-              healthRecords: [],
-              healthScore: fallbackScore,
-            } as PetHealthData;
+      allAlerts.forEach((a: any) => {
+        const petId = a.petId || a.pet_id;
+        if (!alertsByPet.has(petId)) alertsByPet.set(petId, []);
+        alertsByPet.get(petId)!.push(a);
+      });
+
+      allAppointments.forEach((a: any) => {
+        const petId = a.petId || a.pet_id;
+        if (!appointmentsByPet.has(petId)) appointmentsByPet.set(petId, []);
+        appointmentsByPet.get(petId)!.push(a);
+      });
+
+      allHealthRecords.forEach((r: any) => {
+        const petId = r.petId || r.pet_id;
+        if (!recordsByPet.has(petId)) recordsByPet.set(petId, []);
+        recordsByPet.get(petId)!.push(r);
+      });
+
+      // Fetch health scores in parallel for all pets
+      const scorePromises = basePets.map(async (pet) => {
+        try {
+          const response = await fetch(`/api/health-score?petId=${pet.id}`);
+          if (response.ok) {
+            const score = await response.json();
+            return { petId: pet.id, score };
           }
-        })
-      );
+        } catch (e) {
+          console.warn('Failed to fetch health score for', pet.id);
+        }
+        return { petId: pet.id, score: createFallbackScore() };
+      });
 
-      const validData = hydrated.filter((item): item is PetHealthData => item !== null);
+      const scoreResults = await Promise.all(scorePromises);
+      const scoresMap = new Map(scoreResults.map(r => [r.petId, r.score]));
 
-      if (validData.length === 0) {
-        // Even if all health data failed, still show the base pets
-        console.warn('All health data loading failed, using base pets');
-        const scoreMap = new Map<string, UnifiedHealthScore>();
-        const detailMap = new Map<string, PetHealthData>();
-
-        basePets.forEach((pet) => {
-          const fallbackScore = createFallbackScore();
-          scoreMap.set(pet.id, fallbackScore);
-          detailMap.set(pet.id, {
-            pet,
-            alerts: [],
-            appointments: [],
-            healthRecords: [],
-            healthScore: fallbackScore,
-          } as PetHealthData);
-        });
-
-        setPets(basePets);
-        setAlerts([]);
-        setAppointments([]);
-        setPetScores(scoreMap);
-        setPetDetails(detailMap);
-        return;
-      }
-
+      // Build final data structures
       const scoreMap = new Map<string, UnifiedHealthScore>();
       const detailMap = new Map<string, PetHealthData>();
-      const mergedAlerts: Alert[] = [];
-      const mergedAppointments: Appointment[] = [];
 
-      validData.forEach((entry) => {
-        scoreMap.set(entry.pet.id, entry.healthScore);
-        detailMap.set(entry.pet.id, entry);
-        mergedAlerts.push(...entry.alerts);
-        mergedAppointments.push(...entry.appointments);
-        console.log(`HealthContext: Pet ${entry.pet.name} has ${entry.alerts.length} alerts`);
+      basePets.forEach((pet) => {
+        const petAlerts = alertsByPet.get(pet.id) || [];
+        const petAppointments = appointmentsByPet.get(pet.id) || [];
+        const petRecords = recordsByPet.get(pet.id) || [];
+        const healthScore = scoresMap.get(pet.id) || createFallbackScore();
+
+        scoreMap.set(pet.id, healthScore);
+        detailMap.set(pet.id, {
+          pet,
+          alerts: petAlerts,
+          appointments: petAppointments,
+          healthRecords: petRecords,
+          healthScore,
+        } as PetHealthData);
       });
-      console.log(`HealthContext: Total merged alerts = ${mergedAlerts.length}`);
 
-      setPets(validData.map((entry) => entry.pet));
-      setAlerts(mergedAlerts);
-      setAppointments(mergedAppointments);
+      console.log(`HealthContext: Data ready in ${Date.now() - startTime}ms`);
+
+      setPets(basePets);
+      setAlerts(allAlerts as Alert[]);
+      setAppointments(allAppointments as Appointment[]);
       setPetScores(scoreMap);
       setPetDetails(detailMap);
     } catch (error) {

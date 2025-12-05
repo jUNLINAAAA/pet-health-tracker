@@ -50,6 +50,13 @@ npm run dev
 open http://localhost:3000
 ```
 
+### Latest Updates (December 2025)
+
+- **Historical Charts**: Weight, activity, and score trends now display real backend data (60-day history)
+- **Realtime Updates**: Dashboard syncs instantly via Supabase Realtime subscriptions
+- **Intelligent Alerts**: Automated alert generation based on health data analysis
+- **Auth Session Handling**: Fixed race condition ensuring data loads after authentication completes
+
 ---
 
 ## Evaluation Criteria Response

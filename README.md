@@ -54,10 +54,12 @@ This app helps pet owners keep track of their pets' health in one place. You can
 
 | Metric | Value |
 |--------|-------|
-| Supported Pet Species | 7 (dogs, cats, birds, rabbits, fish, reptiles, hamsters) |
+| Supported Pet Species | 9 (dogs, cats, birds, rabbits, fish, reptiles, hamsters, guinea pigs, ferrets) |
 | Health Data Types | 8 (weight, temperature, heart rate, respiratory rate, appetite, activity, vaccinations, clinical visits) |
-| Health Score Components | 6 weighted factors |
-| AI Features | Document OCR, Health Assistant, Pattern Detection |
+| Health Score Components | 7 weighted factors |
+| AI Features | Document OCR, Health Assistant, Pattern Detection, Intelligent Alerts |
+| Clinical Validation | 93.8% accuracy on 16 real vet cases |
+| Historical Data | 60-day trends for charts |
 
 ---
 
@@ -99,6 +101,7 @@ Pet owners face several challenges in managing their pets' health:
 | **AI Health Assistant** | Natural language pet health Q&A | LLM with RAG on pet data |
 | **Realtime Updates** | Live dashboard updates without refresh | Supabase Realtime subscriptions |
 | **Historical Charts** | Weight, activity, and score trends over time | Edge Function with 60-day data |
+| **Intelligent Alerts** | Automated health concern detection | Rule-based engine + trend analysis |
 
 ### Health Score Algorithm
 

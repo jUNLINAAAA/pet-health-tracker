@@ -1,11 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PetService } from '@/lib/services';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
 // Mark this route as dynamic to allow search params
 export const dynamic = 'force-dynamic';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+/**
+ * Trigger intelligent alert generation for a pet
+ * This analyzes health data trends and creates alerts for potential issues
+ */
+async function triggerAlertGeneration(petId: string): Promise<void> {
+  try {
+    const supabase = await createSupabaseServerClient();
+    if (!supabase) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Call the alert generation API internally
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000';
+
+    await fetch(`${baseUrl}/api/alerts/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ petId }),
+    });
+  } catch (error) {
+    // Silent fail - alert generation is non-critical
+    console.warn('Alert generation trigger failed:', error);
+  }
+}
 
 /**
  * UNIFIED HEALTH SCORE API
@@ -50,6 +79,11 @@ export async function GET(request: NextRequest) {
         if (response.ok) {
           const result = await response.json();
           const pet = await PetService.getPet(petId);
+
+          // Trigger intelligent alert generation in background (non-blocking)
+          triggerAlertGeneration(petId).catch(err =>
+            console.warn('Background alert generation failed:', err)
+          );
 
           return NextResponse.json({
             ...result,

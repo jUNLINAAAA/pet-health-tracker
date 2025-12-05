@@ -114,6 +114,17 @@ export async function loadPetHealthData(petId: string): Promise<PetHealthData | 
   // Fallback: Create default score if API fails
   if (!healthScore) {
     console.warn('Using fallback health score for pet', pet.id);
+
+    // Build basic history from health records for charts
+    const weightHistory = healthRecords
+      .filter(r => r.type === 'weight')
+      .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+      .map(r => r.value);
+    const activityHistory = healthRecords
+      .filter(r => r.type === 'activity')
+      .sort((a, b) => new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime())
+      .map(r => r.value);
+
     healthScore = {
       overall: 75,
       components: {
@@ -131,6 +142,17 @@ export async function loadPetHealthData(petId: string): Promise<PetHealthData | 
       insights: ['Score calculated with limited data'],
       algorithm: 'fallback',
       computed_at: new Date().toISOString(),
+      // Include history for charts even in fallback
+      history: {
+        weights: weightHistory,
+        activities: activityHistory,
+        scores: [],
+      },
+      trends: {
+        overall: { direction: 'stable' as const },
+        weight: { direction: 'stable' as const },
+        activity: { direction: 'stable' as const },
+      },
     } as UnifiedHealthScore;
   }
 

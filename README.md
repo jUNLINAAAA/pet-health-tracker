@@ -98,6 +98,7 @@ Pet owners face several challenges in managing their pets' health:
 | **Appointment Manager** | Schedule and track vet visits | Calendar integration |
 | **AI Health Assistant** | Natural language pet health Q&A | LLM with RAG on pet data |
 | **Realtime Updates** | Live dashboard updates without refresh | Supabase Realtime subscriptions |
+| **Historical Charts** | Weight, activity, and score trends over time | Edge Function with 60-day data |
 
 ### Health Score Algorithm
 

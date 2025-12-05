@@ -39,6 +39,7 @@ interface QuickStats {
   alertsResolved: number;
   alertsTotal: number;
   resolvedPercent: number;
+  activeAlerts: number;
 }
 
 interface UserData {
@@ -72,29 +73,29 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
 
   // Calculate stats from the shared health context - same source as Dashboard
   const stats = useMemo<QuickStats>(() => {
-    // Calculate wellness index from pet scores (same as Dashboard)
-    const scores = Array.from(petScores.values());
-    const avgScore = scores.length > 0
-      ? Math.round(scores.reduce((sum, s) => sum + s.overall, 0) / scores.length)
+    // Calculate wellness index from pet scores (SAME formula as Dashboard.tsx lines 67-72)
+    const avgScore = pets.length > 0
+      ? Math.round(
+          Array.from(petScores.values()).reduce((sum, score) => sum + score.overall, 0) /
+            pets.length
+        )
       : 0;
 
-    // Calculate alerts stats - last 7 days
-    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const recentAlerts = alerts.filter(a => {
-      const alertDate = new Date(a.createdAt).getTime();
-      return alertDate >= oneWeekAgo;
-    });
-
-    const totalAlerts = recentAlerts.length;
-    const resolvedAlerts = recentAlerts.filter(a => a.resolved).length;
-    const resolvedPercent = totalAlerts > 0 ? Math.round((resolvedAlerts / totalAlerts) * 100) : 0;
+    // Calculate alerts stats - show ALL alerts, not just recent ones
+    // Active alerts = unresolved (these need attention!)
+    // Total shows context for resolution rate
+    const activeAlerts = alerts.filter(a => !a.resolved);
+    const resolvedAlerts = alerts.filter(a => a.resolved);
+    const totalAlerts = alerts.length;
+    const resolvedPercent = totalAlerts > 0 ? Math.round((resolvedAlerts.length / totalAlerts) * 100) : 0;
 
     return {
       wellnessIndex: avgScore,
       wellnessChange: 0,
-      alertsResolved: resolvedAlerts,
+      alertsResolved: resolvedAlerts.length,
       alertsTotal: totalAlerts,
       resolvedPercent,
+      activeAlerts: activeAlerts.length, // NEW: track active alerts separately
     };
   }, [pets, alerts, petScores]);
 
@@ -248,20 +249,37 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
                   </div>
                 </div>
 
-                {/* Alerts Resolved */}
-                <div className="group relative overflow-hidden rounded-2xl border border-slate-100 bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 px-4 py-3.5 shadow-sm transition-all duration-300 hover:shadow-md hover:shadow-blue-100">
+                {/* Active Alerts - Show what needs attention */}
+                <div className={cn(
+                  "group relative overflow-hidden rounded-2xl border px-4 py-3.5 shadow-sm transition-all duration-300 hover:shadow-md",
+                  stats.activeAlerts > 0
+                    ? "border-amber-200 bg-gradient-to-br from-white via-amber-50/30 to-orange-50/20 hover:shadow-amber-100"
+                    : "border-slate-100 bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/20 hover:shadow-blue-100"
+                )}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Alerts Resolved</p>
-                      <p className="mt-1 text-2xl font-bold text-slate-900">
-                        {isLoadingStats ? "..." : `${stats.alertsResolved}/${stats.alertsTotal}`}
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-400">Health Alerts</p>
+                      <p className={cn(
+                        "mt-1 text-2xl font-bold",
+                        stats.activeAlerts > 0 ? "text-amber-600" : "text-slate-900"
+                      )}>
+                        {isLoadingStats ? "..." : stats.activeAlerts > 0 ? `${stats.activeAlerts} Active` : "All Clear"}
                       </p>
                       <p className="mt-0.5 text-xs font-medium text-slate-500">
-                        {isLoadingStats ? "Loading..." : stats.alertsTotal > 0 ? `${stats.resolvedPercent}% this week` : "No alerts this week"}
+                        {isLoadingStats ? "Loading..." : stats.alertsTotal > 0 ? `${stats.alertsResolved}/${stats.alertsTotal} resolved` : "No alerts"}
                       </p>
                     </div>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/30 transition-transform duration-300 group-hover:scale-110">
-                      <CheckCircle2 className="h-5 w-5 text-white" />
+                    <div className={cn(
+                      "flex h-10 w-10 items-center justify-center rounded-xl shadow-lg transition-transform duration-300 group-hover:scale-110",
+                      stats.activeAlerts > 0
+                        ? "bg-gradient-to-br from-amber-500 to-orange-500 shadow-amber-500/30"
+                        : "bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/30"
+                    )}>
+                      {stats.activeAlerts > 0 ? (
+                        <AlertTriangle className="h-5 w-5 text-white" />
+                      ) : (
+                        <CheckCircle2 className="h-5 w-5 text-white" />
+                      )}
                     </div>
                   </div>
                 </div>

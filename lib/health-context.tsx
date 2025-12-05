@@ -224,7 +224,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Setup realtime subscriptions
+  // Setup realtime subscriptions and auth state listener
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
     if (!supabase) {
@@ -232,8 +232,35 @@ export function HealthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Initial data load
-    loadData();
+    // Wait for auth session before loading data
+    // This prevents race conditions where data loads before auth is ready
+    const initializeWithAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        console.log('HealthContext: Auth session ready, loading data...');
+        loadData();
+      }
+    };
+
+    initializeWithAuth();
+
+    // Listen for auth state changes and reload data when user signs in
+    const { data: { subscription: authSubscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        console.log('HealthContext: Auth state changed:', event);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          // Reload data when user signs in or token refreshes
+          loadData();
+        } else if (event === 'SIGNED_OUT') {
+          // Clear data when user signs out
+          setPets([]);
+          setAlerts([]);
+          setAppointments([]);
+          setPetScores(new Map());
+          setPetDetails(new Map());
+        }
+      }
+    );
 
     // Subscribe to alerts changes for realtime updates
     const alertsChannel = supabase
@@ -341,6 +368,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
 
     // Cleanup subscriptions
     return () => {
+      authSubscription.unsubscribe();
       supabase.removeChannel(alertsChannel);
       supabase.removeChannel(appointmentsChannel);
       supabase.removeChannel(scoresChannel);

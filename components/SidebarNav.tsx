@@ -116,15 +116,18 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
         }
 
         const data = await response.json();
+        console.log('[SidebarNav] Quick Insights API response:', data);
 
         if (isMounted) {
-          setInsights({
+          const insightsData = {
             wellnessIndex: data.wellnessIndex ?? 0,
             totalAlerts: data.totalAlerts ?? 0,
             resolvedAlerts: data.resolvedAlerts ?? 0,
             activeAlerts: data.activeAlerts ?? 0,
             petsCount: data.petsCount ?? 0,
-          });
+          };
+          console.log('[SidebarNav] Setting insights:', insightsData);
+          setInsights(insightsData);
           setIsLoading(false);
         }
       } catch (error) {
@@ -138,10 +141,13 @@ export function SidebarNav({ onAssistantSummon }: SidebarNavProps) {
     // Refetch when auth state changes
     const supabase = getSupabaseBrowserClient();
     if (supabase) {
-      const { data } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          setIsLoading(true);
-          fetchInsights();
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('[SidebarNav] Auth state change:', event, 'Has session:', !!session);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+          if (session) {
+            setIsLoading(true);
+            fetchInsights();
+          }
         }
       });
       return () => data.subscription.unsubscribe();

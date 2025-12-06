@@ -35,6 +35,7 @@ export async function GET() {
     }
 
     const userId = user.id;
+    console.log('[Quick Insights] User ID:', userId, 'Email:', user.email);
 
     // Calculate 7 days ago for alert filtering
     const sevenDaysAgo = new Date();
@@ -113,6 +114,7 @@ export async function GET() {
       activeAlerts,
     };
 
+    console.log('[Quick Insights] Response:', JSON.stringify(response));
     return NextResponse.json(response);
   } catch (error) {
     console.error('Quick Insights API error:', error);

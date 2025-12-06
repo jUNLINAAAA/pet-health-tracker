@@ -52,7 +52,7 @@ open http://localhost:3000
 
 ### Latest Updates (December 2025)
 
-- **Quick Insights API**: New `/api/quick-insights` backend endpoint for server-side aggregation of wellness index and alert statistics
+- **Quick Insights API**: New `/api/quick-insights` backend endpoint for server-side aggregation of wellness index and alert statistics (filtered to last 7 days for relevance)
 - **Redesigned Quick Insights UI**: Sidebar widget now shows wellness index, pets count, and alert status (active/resolved/total) with proper loading states
 - **Historical Charts**: Weight, activity, and score trends now display real backend data (60-day history)
 - **Realtime Updates**: Dashboard syncs instantly via Supabase Realtime subscriptions

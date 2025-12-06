@@ -60,9 +60,9 @@ export async function GET() {
       // Get recent health scores for wellness index
       supabase
         .from('health_scores')
-        .select('overall')
+        .select('score')
         .eq('user_id', userId)
-        .order('computed_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(10),
     ]);
 
@@ -90,7 +90,7 @@ export async function GET() {
     let wellnessIndex = 0;
     if (scoresResult.data && scoresResult.data.length > 0) {
       const scores = scoresResult.data
-        .map(s => s.overall)
+        .map(s => s.score)
         .filter((s): s is number => typeof s === 'number');
 
       if (scores.length > 0) {

@@ -277,7 +277,7 @@ Complete data dictionary for all 7 database tables:
 | `pets` | Pet profiles | id, name, species, breed, age, weight |
 | `health_records` | Individual health entries | pet_id, type, value, unit, recorded_at |
 | `health_scores` | Calculated scores | pet_id, overall, components, algorithm_version |
-| `alerts` | Health warnings | pet_id, type, severity, message, is_resolved |
+| `alerts` | Health warnings | pet_id, type, severity, message, resolved |
 | `appointments` | Vet visits | pet_id, date_time, clinic_name, purpose |
 | `health_documents` | Uploaded files | pet_id, file_name, extracted_data |
 | `assistant_messages` | AI chat history | pet_id, role, content |

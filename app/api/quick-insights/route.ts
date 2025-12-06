@@ -27,15 +27,35 @@ export async function GET() {
       return NextResponse.json({ error: 'Service unavailable' }, { status: 503 });
     }
 
-    // Get authenticated user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Get authenticated user - try getSession first (faster, reads cookies)
+    // then fall back to getUser if needed
+    let userId: string | undefined;
+    let userEmail: string | undefined;
 
-    if (authError || !user) {
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    console.log('[Quick Insights] Session check:', session ? `user: ${session.user.id}` : 'no session', sessionError ? `error: ${sessionError.message}` : '');
+
+    if (session?.user) {
+      userId = session.user.id;
+      userEmail = session.user.email;
+    } else {
+      // Fallback to getUser() which makes network call
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      console.log('[Quick Insights] getUser fallback:', user ? `user: ${user.id}` : 'no user', authError ? `error: ${authError.message}` : '');
+
+      if (authError || !user) {
+        console.log('[Quick Insights] Auth failed - returning 401');
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      userId = user.id;
+      userEmail = user.email;
+    }
+
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const userId = user.id;
-    console.log('[Quick Insights] User ID:', userId, 'Email:', user.email);
+    console.log('[Quick Insights] Authenticated - User ID:', userId, 'Email:', userEmail);
 
     // Calculate 7 days ago for alert filtering
     const sevenDaysAgo = new Date();

@@ -52,12 +52,13 @@ open http://localhost:3000
 
 ### Latest Updates (December 2025)
 
+- **Quick Insights API**: New `/api/quick-insights` backend endpoint for server-side aggregation of wellness index and alert statistics
+- **Redesigned Quick Insights UI**: Sidebar widget now shows wellness index, pets count, and alert status (active/resolved/total) with proper loading states
 - **Historical Charts**: Weight, activity, and score trends now display real backend data (60-day history)
 - **Realtime Updates**: Dashboard syncs instantly via Supabase Realtime subscriptions
 - **Comprehensive Alerts**: Rule-based alerts analyze ALL metrics (weight, activity, appetite, temperature, heart rate, clinical notes, vaccinations)
 - **Auth Session Handling**: Fixed race condition ensuring data loads after authentication completes
 - **Multi-User Support**: Full data isolation with Row Level Security (RLS) - each user sees only their own data
-- **Quick Insights**: Sidebar shows wellness index and alert status computed live from backend
 - **Sparklines**: Activity trend charts display proper 7-day time-series data with meaningful variations
 - **Hydration Fix**: Prevents flash of unstyled content during hard refresh with proper loading states
 - **Responsive Design**: Premium mobile-first UI with adaptive layouts for all screen sizes

@@ -150,7 +150,7 @@ Stores health warnings and notifications for pets.
 | severity | text | Yes | How urgent the alert is | "low", "medium", "high" |
 | title | text | Yes | Short alert headline | "Weight gain detected" |
 | message | text | Yes | Detailed alert message | "Max has gained 2kg in the past month..." |
-| is_resolved | boolean | Yes | Whether alert has been addressed | true, false |
+| resolved | boolean | Yes | Whether alert has been addressed | true, false |
 | resolved_at | timestamp | No | When alert was resolved | "2024-03-25T10:00:00Z" |
 | created_at | timestamp | Yes | When alert was created | "2024-03-20T08:00:00Z" |
 

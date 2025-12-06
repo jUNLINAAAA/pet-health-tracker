@@ -36,6 +36,11 @@ export async function GET() {
 
     const userId = user.id;
 
+    // Calculate 7 days ago for alert filtering
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoISO = sevenDaysAgo.toISOString();
+
     // Fetch all data in parallel for performance
     const [petsResult, alertsTotalResult, alertsResolvedResult, scoresResult] = await Promise.all([
       // Count pets
@@ -44,18 +49,20 @@ export async function GET() {
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId),
 
-      // Count total alerts
-      supabase
-        .from('alerts')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId),
-
-      // Count resolved alerts
+      // Count total alerts (last 7 days only)
       supabase
         .from('alerts')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', userId)
-        .eq('resolved', true),
+        .gte('created_at', sevenDaysAgoISO),
+
+      // Count resolved alerts (last 7 days only)
+      supabase
+        .from('alerts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('resolved', true)
+        .gte('created_at', sevenDaysAgoISO),
 
       // Get recent health scores for wellness index
       supabase
